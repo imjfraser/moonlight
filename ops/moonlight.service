@@ -1,0 +1,20 @@
+[Unit]
+Description=Moonlight Web App (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/moonlight
+ExecStart=/bin/bash /home/ubuntu/moonlight/start.sh
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/logs/moonlight.log
+StandardError=append:/home/ubuntu/logs/moonlight.log
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

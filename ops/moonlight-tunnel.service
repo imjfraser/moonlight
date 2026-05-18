@@ -1,0 +1,17 @@
+[Unit]
+Description=Cloudflare Tunnel for Moonlight (quick tunnel)
+After=network-online.target moonlight.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://localhost:3002
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/logs/moonlight-tunnel.log
+StandardError=append:/home/ubuntu/logs/moonlight-tunnel.log
+
+[Install]
+WantedBy=multi-user.target
