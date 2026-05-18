@@ -1,8 +1,5 @@
 "use client";
 
-// /shop/[handle] — the page she shares when someone asks
-// "where can I see what you do?"
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -119,17 +116,35 @@ export default function ShopPage() {
           </div>
         ))}
 
-        {ordered.filter((s) => s.type === "gallery").map((s) => (
-          <div key={s.id} className="pv-section">
-            <h3>{s.title}</h3>
-            <ul style={{ paddingLeft: 18 }}>
-              {(s.data.captions || []).map((c, i) => (
-                <li key={i} style={{ color: "#666" }}>{c}</li>
-              ))}
-            </ul>
-            <p style={{ fontSize: 12, color: "#999" }}>(Add photos to bring this to life.)</p>
-          </div>
-        ))}
+        {ordered.filter((s) => s.type === "gallery").map((s) => {
+          const photos = s.data.photos || (s.data.captions || []).map((c) => ({ url: "", caption: c }));
+          const withImages = photos.filter((p) => p.url);
+          return (
+            <div key={s.id} className="pv-section">
+              <h3>{s.title}</h3>
+              {withImages.length > 0 ? (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+                  {withImages.map((p, i) => (
+                    <figure key={i} style={{ margin: 0 }}>
+                      <img
+                        src={p.url}
+                        alt={p.caption || ""}
+                        style={{ width: "100%", borderRadius: 10, display: "block", border: "1px solid #eee" }}
+                      />
+                      {p.caption && (
+                        <figcaption style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+                          {p.caption}
+                        </figcaption>
+                      )}
+                    </figure>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: 13, color: "#999" }}>(Photos coming soon.)</p>
+              )}
+            </div>
+          );
+        })}
 
         {ordered.filter((s) => s.type === "faq").map((s) => (
           <div key={s.id} className="pv-section">

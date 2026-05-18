@@ -1,15 +1,22 @@
 "use client";
 
-// /me — her dashboard. Shows her current shop, her drafted message, her
-// marketing plan, and a chat with Sol-the-Builder for adding new sections.
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { loadSession, defaultSession } from "../lib/session";
-import { loadShop, addSection, removeSection, myHandle } from "../lib/shop-store";
+import { loadShop, addSection, removeSection, updateSection, myHandle } from "../lib/shop-store";
+
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 const SECTION_PROMPTS = [
   "What should I add next?",
+  "Add a photo",
   "Add a testimonial",
   "Add another service",
   "Add an FAQ",
@@ -86,18 +93,29 @@ export default function MePage() {
     sendToBuilder(newMessages);
   }
 
-  function acceptProposed() {
-    if (!proposed || !handle) return;
-    const updated = addSection(handle, proposed);
+  function acceptProposed(maybeOverride) {
+    const toSave = maybeOverride || proposed;
+    if (!toSave || !handle) return;
+    const updated = addSection(handle, toSave);
     setShop(updated);
     setProposed(null);
     const ack = {
       role: "assistant",
-      content: `Done. I added a ${proposed.type} section to your page. Open your page to see it. What's next?`,
+      content: `Done. I added a ${toSave.type} section to your page. Open your page to see it. What's next?`,
       proposedSection: null,
       quickReplies: ["What else should I add?", "Show me my page", "I'm good for now"],
     };
     setMessages((prev) => [...prev, ack]);
+  }
+
+  function updateProposedData(patch) {
+    setProposed((prev) => (prev ? { ...prev, data: { ...prev.data, ...patch } } : prev));
+  }
+
+  function patchExistingSection(sectionId, patch) {
+    if (!handle) return;
+    const updated = updateSection(handle, sectionId, patch);
+    setShop(updated);
   }
 
   function rejectProposed() {
@@ -117,9 +135,7 @@ export default function MePage() {
     return (
       <>
         <h1>You don&apos;t have a page yet</h1>
-        <p className="muted">
-          Spend 10 minutes with Sol to get your first one.
-        </p>
+        <p className="muted">Spend 10 minutes with Sol to get your first one.</p>
         <Link href="/start" className="btn">Start with Sol →</Link>
       </>
     );
@@ -155,7 +171,7 @@ export default function MePage() {
           ) : (
             <ul className="clean">
               {sections.map((s) => (
-                <li key={s.id}>
+                <li key={s.id} style={{ marginBottom: 12 }}>
                   <strong>{s.title}</strong>{" "}
                   <span className="muted">({s.type})</span>{" "}
                   <button
@@ -165,6 +181,14 @@ export default function MePage() {
                   >
                     Remove
                   </button>
+                  {s.type === "gallery" && (
+                    <PhotoManager
+                      section={s}
+                      onPhotosChange={(photos) =>
+                        patchExistingSection(s.id, { data: { ...s.data, photos } })
+                      }
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -221,8 +245,15 @@ export default function MePage() {
             <span className="pill">Sol proposes — {proposed.type}</span>
             <h4 style={{ marginTop: 8 }}>{proposed.title}</h4>
             <SectionPreview section={proposed} />
+            {proposed.type === "gallery" && (
+              <PhotoManager
+                section={proposed}
+                onPhotosChange={(photos) => updateProposedData({ photos })}
+                compact
+              />
+            )}
             <div className="row" style={{ marginTop: 10 }}>
-              <button className="btn" onClick={acceptProposed}>Looks good — add it to my page</button>
+              <button className="btn" onClick={() => acceptProposed()}>Looks good — add it to my page</button>
               <button className="btn ghost" onClick={rejectProposed}>Show me a different one</button>
             </div>
           </div>
@@ -313,12 +344,26 @@ function SectionPreview({ section }) {
     );
   }
   if (section.type === "gallery") {
+    const photos = d.photos || (d.captions || []).map((c) => ({ url: "", caption: c }));
     return (
-      <ul className="clean">
-        {(d.captions || []).map((c, i) => (
-          <li key={i} className="muted">{c}</li>
-        ))}
-      </ul>
+      <div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
+          {photos.map((p, i) => (
+            <div key={i} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 6, background: "rgba(255,255,255,0.6)" }}>
+              {p.url ? (
+                <img src={p.url} alt={p.caption || ""} style={{ width: "100%", borderRadius: 6, display: "block" }} />
+              ) : (
+                <div style={{ height: 80, borderRadius: 6, background: "rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: 12, textAlign: "center", padding: 6 }}>
+                  {p.caption || "Add a photo"}
+                </div>
+              )}
+              {p.url && p.caption && (
+                <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>{p.caption}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
   if (section.type === "booking") {
@@ -348,4 +393,117 @@ function SectionPreview({ section }) {
     );
   }
   return <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(d, null, 2)}</pre>;
+}
+
+function PhotoManager({ section, onPhotosChange, compact }) {
+  const initial = section.data?.photos || (section.data?.captions || []).map((c) => ({ url: "", caption: c }));
+  const [photos, setPhotos] = useState(initial);
+  const [urlDraft, setUrlDraft] = useState("");
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+
+  function commit(next) {
+    setPhotos(next);
+    onPhotosChange(next);
+  }
+
+  async function onFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      const dataUrl = await fileToDataURL(file);
+      const next = [...photos, { url: dataUrl, caption: captionDraft }];
+      commit(next);
+      setCaptionDraft("");
+      if (fileRef.current) fileRef.current.value = "";
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function addFromUrl() {
+    if (!urlDraft.trim()) return;
+    const next = [...photos, { url: urlDraft.trim(), caption: captionDraft }];
+    commit(next);
+    setUrlDraft("");
+    setCaptionDraft("");
+  }
+
+  function removeAt(i) {
+    commit(photos.filter((_, idx) => idx !== i));
+  }
+
+  function setCaptionAt(i, caption) {
+    commit(photos.map((p, idx) => (idx === i ? { ...p, caption } : p)));
+  }
+
+  return (
+    <div style={{ marginTop: compact ? 12 : 8, padding: compact ? 10 : 8, borderRadius: 10, background: "rgba(0,0,0,0.03)" }}>
+      <div className="muted" style={{ fontSize: 12, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
+        Photos in this gallery
+      </div>
+
+      {photos.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginBottom: 10 }}>
+          {photos.map((p, i) => (
+            <div key={i} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 6, background: "#fff", position: "relative" }}>
+              {p.url ? (
+                <img src={p.url} alt={p.caption || ""} style={{ width: "100%", borderRadius: 6, display: "block" }} />
+              ) : (
+                <div style={{ height: 80, borderRadius: 6, background: "rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: 12, textAlign: "center", padding: 6 }}>
+                  {p.caption || "(no photo yet)"}
+                </div>
+              )}
+              <input
+                value={p.caption || ""}
+                onChange={(e) => setCaptionAt(i, e.target.value)}
+                placeholder="caption (optional)"
+                style={{ width: "100%", fontSize: 12, padding: 4, marginTop: 4, borderRadius: 4, border: "1px solid var(--line)", background: "#fff" }}
+              />
+              <button
+                className="btn ghost small"
+                onClick={() => removeAt(i)}
+                style={{ marginTop: 4, fontSize: 11, padding: "2px 6px" }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 6 }}>
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileRef}
+          onChange={onFile}
+          disabled={busy}
+          style={{ fontSize: 13 }}
+        />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <input
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            placeholder="…or paste a photo URL"
+            style={{ flex: "1 1 200px", fontSize: 13, padding: 8, borderRadius: 8, border: "1px solid var(--line)", background: "#fff" }}
+          />
+          <input
+            value={captionDraft}
+            onChange={(e) => setCaptionDraft(e.target.value)}
+            placeholder="caption (optional)"
+            style={{ flex: "1 1 150px", fontSize: 13, padding: 8, borderRadius: 8, border: "1px solid var(--line)", background: "#fff" }}
+          />
+          <button className="btn small" onClick={addFromUrl} disabled={!urlDraft.trim()}>
+            Add URL
+          </button>
+        </div>
+        <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+          Photos are stored locally in your browser. Keep them small — under 1MB each for best results.
+        </p>
+      </div>
+    </div>
+  );
 }
