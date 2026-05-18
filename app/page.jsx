@@ -4,74 +4,65 @@ export default function Home() {
   return (
     <>
       <span className="pill">A coach in your pocket</span>
-      <h1>Build something small. Start with what you already have.</h1>
+      <h1>Turn what you already know into real income — with a coach who&apos;s seen it work.</h1>
       <p className="muted" style={{ fontSize: 17, maxWidth: 640 }}>
-        Moonlight helps people turn skills, ideas, and lived experience into safer
-        digital income opportunities — with a business coach and a builder by your side.
+        Moonlight is a business coach in your pocket. You bring your skill,
+        your time, and what you already know. Sol helps you turn it into a real
+        business that pays — using the new tools that let one person do what used
+        to take a team.
       </p>
 
       <div className="row">
-        <Link href="/start" className="btn">Start a business-building session →</Link>
+        <Link href="/start" className="btn">Start a session →</Link>
         <Link href="/funding" className="btn ghost">For partners &amp; funders</Link>
       </div>
 
       <div className="grid-2" style={{ marginTop: 22 }}>
         <div className="card">
-          <h3>What Moonlight is</h3>
-          <p className="muted">
-            A guided journey from a vague idea to a small, real digital business —
-            in your language, at your pace, with a coach who helps you imagine,
-            decide, and act.
-          </p>
-        </div>
-        <div className="card">
-          <h3>Who it&apos;s for</h3>
-          <p className="muted">
-            People who are vulnerable to exploitation and want safer income options.
-            Today: women and girls first. Tomorrow: anyone facing similar pressures.
-          </p>
-        </div>
-        <div className="card">
-          <h3>What it helps with</h3>
-          <ul className="clean muted">
-            <li>Imagining small businesses you could actually run</li>
-            <li>Clarifying what you can offer right now</li>
-            <li>Building a simple online presence — safely</li>
-            <li>Learning to sell from day one, with no capital required</li>
-            <li>Practical next steps you can do this week</li>
-          </ul>
-        </div>
-        <div className="card">
           <h3>How it works</h3>
           <p className="muted">
-            Two helpers work together: an <strong>architect</strong> who listens
-            and plans with you, and a <strong>builder</strong> who turns the plan
-            into real things — names, pages, messages, posts, and a website draft.
+            Sol — your coach — asks you a few simple questions, listens, and
+            helps you choose your first move this week. You walk away with one
+            specific customer to message, a price, and a page you can share.
+          </p>
+        </div>
+        <div className="card">
+          <h3>What you can build</h3>
+          <p className="muted">
+            A small business with online customers. A digital product you build
+            once and sell many times. A platform that connects others. Whatever
+            fits — the tools are here now, and you don&apos;t need to code.
+          </p>
+        </div>
+        <div className="card">
+          <h3>You decide what&apos;s shared</h3>
+          <p className="muted">
+            Your real name, your address, your photo — none of it is shared
+            unless you say so. You control what your customers see.
+          </p>
+        </div>
+        <div className="card">
+          <h3>Aimed high, on purpose</h3>
+          <p className="muted">
+            The goal isn&apos;t a side hustle that buys groceries. It&apos;s a
+            real income — the kind that pays the rent and then some. Sol plans
+            with that target in mind from the first conversation.
           </p>
         </div>
       </div>
 
       <div className="card warm" style={{ marginTop: 22 }}>
-        <span className="pill">Internal MVP</span>
-        <h3 style={{ marginTop: 8 }}>What this prototype is testing</h3>
+        <span className="pill">First step</span>
+        <h3 style={{ marginTop: 8 }}>Spend 10 minutes with Sol</h3>
         <p className="muted">
-          Can a guided AI coach and a builder workflow help people identify
-          realistic income opportunities and create their first digital business
-          assets — safely, simply, and with partner support? This prototype is
-          our first attempt to make that experience feel real.
+          By the end of one short conversation you&apos;ll have a specific person
+          to message today, an offer with a price, and a page to share. No
+          jargon. No business plan. Just a first move.
         </p>
         <div className="row">
-          <Link href="/start" className="btn">Try the journey</Link>
-          <Link href="/preview" className="btn ghost">Skip ahead: see a generated site</Link>
+          <Link href="/start" className="btn">Start →</Link>
+          <Link href="/preview" className="btn ghost">See a sample page</Link>
         </div>
-      </div>
-
-      <div className="safety" style={{ marginTop: 18 }}>
-        <strong>Safeguarding note.</strong> This is an internal exploratory prototype.
-        It is <em>not</em> ready for real vulnerable users. Production versions would
-        require safeguarding review, partner-led delivery, trauma-informed UX,
-        privacy and anonymity controls, anti-abuse controls, careful handling of
-        minors, and clear human escalation pathways.
       </div>
     </>
   );
