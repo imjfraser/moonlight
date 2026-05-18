@@ -19,11 +19,9 @@ export default function RootLayout({ children }) {
               <span className="pill muted" style={{ marginLeft: 8 }}>Internal prototype</span>
             </Link>
             <div className="links">
-              <Link href="/start">Start a session</Link>
-              <Link href="/architect">Architect</Link>
-              <Link href="/brief">Brief</Link>
-              <Link href="/kit">Business kit</Link>
-              <Link href="/preview">Site preview</Link>
+              <Link href="/start">Start</Link>
+              <Link href="/architect">Coach</Link>
+              <Link href="/me">My page</Link>
               <Link href="/funding">Funding</Link>
             </div>
           </nav>
