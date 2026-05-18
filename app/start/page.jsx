@@ -5,7 +5,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loadSession, saveSession, defaultSession } from "../lib/session";
 
-const CHANNELS = ["WhatsApp", "Instagram", "Facebook", "TikTok", "Phone only", "None"];
+const CHANNELS = [
+  "WhatsApp",
+  "Instagram",
+  "TikTok",
+  "Facebook",
+  "Web / browser",
+  "Email",
+  "LinkedIn",
+  "YouTube",
+  "Phone only",
+];
 const HOURS = ["1-2", "3-4", "5-10", "10-20", "20+"];
 const OFFER_TYPES = [
   { id: "service", label: "A service (I do something for people)" },
