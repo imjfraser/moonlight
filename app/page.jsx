@@ -6,7 +6,7 @@ export default function Home() {
       <span className="pill">A coach in your pocket</span>
       <h1>Turn what you already know into real income — with a coach who&apos;s seen it work.</h1>
       <p className="muted" style={{ fontSize: 17, maxWidth: 640 }}>
-        Moonlight is a business coach in your pocket. You bring your skill,
+        Luz de Luna is a business coach in your pocket. You bring your skill,
         your time, and what you already know. Sol helps you turn it into a real
         business that pays — using the new tools that let one person do what used
         to take a team.

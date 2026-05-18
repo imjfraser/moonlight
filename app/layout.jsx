@@ -2,9 +2,9 @@ import "./globals.css";
 import Link from "next/link";
 
 export const metadata = {
-  title: "Moonlight — a coach in your pocket",
+  title: "Luz de Luna — a business coach in your pocket",
   description:
-    "Moonlight helps people turn skills, ideas, and lived experience into safer digital income opportunities — with a business coach and builder by their side.",
+    "Luz de Luna turns what you already know into real income — with a coach who's seen it work, and tools to build a digital business without writing code.",
 };
 
 export default function RootLayout({ children }) {
@@ -15,8 +15,7 @@ export default function RootLayout({ children }) {
           <nav className="top">
             <Link href="/" className="brand">
               <span className="moon" aria-hidden="true" />
-              <span>Moonlight</span>
-              <span className="pill muted" style={{ marginLeft: 8 }}>Internal prototype</span>
+              <span>Luz de Luna</span>
             </Link>
             <div className="links">
               <Link href="/start">Start</Link>
@@ -27,14 +26,12 @@ export default function RootLayout({ children }) {
           </nav>
           {children}
           <footer>
-            <div>
-              Moonlight is an internal exploratory prototype. Not for live participant use.
-              Production versions require safeguarding review, partner-led implementation,
-              trauma-informed UX, privacy controls, and human escalation pathways.
+            <div className="muted">
+              Luz de Luna — a small, private business coach. Your answers stay in your browser
+              unless you choose to share them.
             </div>
             <div style={{ marginTop: 8 }}>
-              <span className="pill warn">Prototype only</span>{" "}
-              <span className="muted">&copy; Moonlight project — Bucket 3</span>
+              <span className="muted">&copy; Luz de Luna</span>
             </div>
           </footer>
         </div>

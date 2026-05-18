@@ -1,5 +1,8 @@
 "use client";
 
+// /shop/[handle] — the page she shares when someone asks
+// "where can I see what you do?"
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -210,7 +213,7 @@ export default function ShopPage() {
       </div>
 
       <p className="muted" style={{ textAlign: "center", marginTop: 16, fontSize: 13 }}>
-        Page made with <Link href="/">Moonlight</Link> ·{" "}
+        Page made with <Link href="/">Luz de Luna</Link> ·{" "}
         <Link href="/me">Edit this page</Link>
       </p>
     </>
