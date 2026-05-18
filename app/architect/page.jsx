@@ -4,23 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loadSession, saveSession, defaultSession } from "../lib/session";
-
-// Real coach UI. Talks to /api/coach which calls Claude.
-// One question at a time. Mobile-first. The coach drives the flow via the
-// "state" field; this UI just renders.
-
-const STATE_LABEL = {
-  greeting: "Hello",
-  skill_exploration: "What you do well",
-  first_customer_id: "Your first customer",
-  offer_proposal: "Your first offer",
-  action_drafted: "Your first message",
-  marketing_plan: "Your marketing plan",
-  done: "Ready to send",
-};
+import { useT, useLang } from "../lib/i18n";
 
 export default function CoachPage() {
   const router = useRouter();
+  const t = useT();
+  const lang = useLang();
   const [s, setS] = useState(defaultSession);
   const [ready, setReady] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -74,6 +63,7 @@ export default function CoachPage() {
         body: JSON.stringify({
           intake: intake || s.intake,
           messages: history.map((m) => ({ role: m.role, content: m.content })),
+          lang,
         }),
       });
       const data = await res.json();
@@ -116,8 +106,7 @@ export default function CoachPage() {
       if (finalHandle && finalOffer && typeof window !== "undefined") {
         const shopRec = {
           handle: finalHandle,
-          ownerPublicName:
-            (next.intake.publicName || next.intake.name || "").trim() || "Owner",
+          ownerPublicName: (next.intake.publicName || next.intake.name || "").trim() || "Owner",
           showRealName: !!next.intake.showRealName,
           ownerRealName: next.intake.name || "",
           offer: finalOffer,
@@ -135,7 +124,7 @@ export default function CoachPage() {
       setS(next);
     } catch (e) {
       console.error(e);
-      setErrorMsg("Connection hiccup. Tap send to try again.");
+      setErrorMsg(t("common.connectionHiccup"));
     } finally {
       setPending(false);
     }
@@ -193,47 +182,36 @@ export default function CoachPage() {
     sendToCoach([], next.intake);
   }
 
-  if (!ready) return <div className="card">Loading…</div>;
+  if (!ready) return <div className="card">{t("common.loading")}</div>;
 
   if (!s.intake.name && !s.intake.skills && !s.intake.askedFor) {
     return (
       <>
-        <h1>Let&apos;s start with a few questions first</h1>
-        <p className="muted">
-          Sol — your coach — works best with a little bit of context. Tell us a few
-          quick things about yourself first.
-        </p>
-        <Link href="/start" className="btn">Start →</Link>
+        <h1>{t("coach.noIntakeTitle")}</h1>
+        <p className="muted">{t("coach.noIntakeBody")}</p>
+        <Link href="/start" className="btn">{t("coach.noIntakeCta")}</Link>
       </>
     );
   }
 
   return (
     <>
-      <span className="pill">{STATE_LABEL[state] || "Coach"} · with Sol</span>
-      <h1>Sol — your coach</h1>
+      <span className="pill">{t(`coach.stateLabel.${state}`)}{t("coach.pillSuffix")}</span>
+      <h1>{t("coach.title")}</h1>
 
-      <div
-        ref={scrollRef}
-        className="card"
-        style={{ maxHeight: 480, overflowY: "auto", padding: 14 }}
-      >
+      <div ref={scrollRef} className="card" style={{ maxHeight: 480, overflowY: "auto", padding: 14 }}>
         <div className="chat">
           {messages.map((m, i) => (
             <div key={i} className={`msg ${m.role === "user" ? "user" : "agent"}`}>
-              <div className="who">{m.role === "user" ? "You" : "Sol"}</div>
+              <div className="who">{m.role === "user" ? (lang === "es" ? "Tú" : "You") : "Sol"}</div>
               <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>
-              {m.notice && (
-                <div className="safety" style={{ marginTop: 8, fontSize: 12 }}>
-                  {m.notice}
-                </div>
-              )}
+              {m.notice && <div className="safety" style={{ marginTop: 8, fontSize: 12 }}>{m.notice}</div>}
             </div>
           ))}
           {pending && (
             <div className="msg agent">
               <div className="who">Sol</div>
-              <div style={{ opacity: 0.7 }}>thinking…</div>
+              <div style={{ opacity: 0.7 }}>{t("coach.thinking")}</div>
             </div>
           )}
         </div>
@@ -241,57 +219,56 @@ export default function CoachPage() {
 
       {proposedOffer && (
         <div className="card warm">
-          <span className="pill">Your first offer</span>
+          <span className="pill">{t("coach.offerCard.pill")}</span>
           <h3 style={{ marginTop: 8 }}>{proposedOffer.name}</h3>
           <p style={{ marginTop: 0 }}><strong>{proposedOffer.tagline}</strong></p>
           <p>{proposedOffer.description}</p>
           <p>
-            <strong>Price:</strong> {proposedOffer.priceLocal || `USD ${proposedOffer.priceUSD}`}
+            <strong>{t("coach.offerCard.priceLabel")}</strong>{" "}
+            {proposedOffer.priceLocal || `USD ${proposedOffer.priceUSD}`}
             {" · "}
-            <strong>Deliver:</strong> {proposedOffer.deliveryWindow}
+            <strong>{t("coach.offerCard.deliverLabel")}</strong> {proposedOffer.deliveryWindow}
           </p>
           <p style={{ marginTop: 6 }}>
-            <strong>First customer:</strong> {proposedOffer.firstCustomer}
+            <strong>{t("coach.offerCard.firstCustomerLabel")}</strong> {proposedOffer.firstCustomer}
           </p>
           <div className="safety" style={{ marginTop: 10 }}>
-            <strong>How this grows to USD 2,500/month:</strong> {proposedOffer.scalingPath}
+            <strong>{t("coach.offerCard.scalingLabel")}</strong> {proposedOffer.scalingPath}
           </div>
         </div>
       )}
 
       {skillGapAdvice && (
         <div className="card sage">
-          <span className="pill sage">Skill to add</span>
+          <span className="pill sage">{t("coach.skillGap.pill")}</span>
           <p style={{ marginTop: 8 }}>{skillGapAdvice}</p>
         </div>
       )}
 
       {marketingPlan && (
         <div className="card warm">
-          <span className="pill">Your 30-day marketing engine</span>
+          <span className="pill">{t("coach.marketing.pill")}</span>
           <h3 style={{ marginTop: 8 }}>
             {marketingPlan.primaryChannel}
             {marketingPlan.secondaryChannel ? ` + ${marketingPlan.secondaryChannel}` : ""}
           </h3>
-          <p><strong>Daily:</strong> {marketingPlan.daily}</p>
-          <p><strong>Weekly:</strong> {marketingPlan.weekly}</p>
+          <p><strong>{t("coach.marketing.dailyLabel")}</strong> {marketingPlan.daily}</p>
+          <p><strong>{t("coach.marketing.weeklyLabel")}</strong> {marketingPlan.weekly}</p>
           {marketingPlan.aiToolsToUse && marketingPlan.aiToolsToUse.length > 0 && (
-            <p>
-              <strong>Use these tools:</strong> {marketingPlan.aiToolsToUse.join(" · ")}
-            </p>
+            <p><strong>{t("coach.marketing.toolsLabel")}</strong> {marketingPlan.aiToolsToUse.join(" · ")}</p>
           )}
           {marketingPlan.examplePostHook && (
             <div className="card tight" style={{ background: "rgba(0,0,0,0.04)", marginTop: 10, position: "relative" }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>FIRST POST — copy this</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>{t("coach.marketing.firstPost")}</div>
               <div style={{ whiteSpace: "pre-wrap" }}>{marketingPlan.examplePostHook}</div>
               <button className="btn ghost small" onClick={copyHook} style={{ position: "absolute", top: 8, right: 8 }}>
-                Copy
+                {t("common.copy")}
               </button>
             </div>
           )}
           {marketingPlan.thirtyDayGoal && (
             <div className="safety" style={{ marginTop: 10 }}>
-              <strong>30-day goal:</strong> {marketingPlan.thirtyDayGoal}
+              <strong>{t("coach.marketing.goalLabel")}</strong> {marketingPlan.thirtyDayGoal}
             </div>
           )}
         </div>
@@ -299,61 +276,39 @@ export default function CoachPage() {
 
       {draftedMessage && (
         <div className="card">
-          <span className="pill">Send this today</span>
-          <pre
-            style={{
-              whiteSpace: "pre-wrap",
-              fontFamily: "inherit",
-              background: "rgba(0,0,0,0.04)",
-              borderRadius: 10,
-              padding: 12,
-              margin: "10px 0",
-            }}
-          >{draftedMessage}</pre>
+          <span className="pill">{t("coach.draftedMessage.pill")}</span>
+          <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", background: "rgba(0,0,0,0.04)", borderRadius: 10, padding: 12, margin: "10px 0" }}>{draftedMessage}</pre>
           <div className="row">
-            <button className="btn" onClick={copyMessage}>Copy message</button>
-            <a className="btn ghost" href={whatsappLink()} target="_blank" rel="noreferrer">
-              Open in WhatsApp →
-            </a>
+            <button className="btn" onClick={copyMessage}>{t("coach.draftedMessage.copyBtn")}</button>
+            <a className="btn ghost" href={whatsappLink()} target="_blank" rel="noreferrer">{t("coach.draftedMessage.waBtn")}</a>
           </div>
         </div>
       )}
 
       {shopHandle && (
         <div className="card sage">
-          <span className="pill sage">Your shareable page</span>
-          <h3 style={{ marginTop: 8 }}>Your page is ready</h3>
-          <p>
-            Share this link when someone asks &ldquo;where can I see what you do?&rdquo;
-          </p>
-          <Link href={`/shop/${shopHandle}`} className="btn">Open your page →</Link>
+          <span className="pill sage">{t("coach.shopReady.pill")}</span>
+          <h3 style={{ marginTop: 8 }}>{t("coach.shopReady.title")}</h3>
+          <p>{t("coach.shopReady.body")}</p>
+          <Link href={`/shop/${shopHandle}`} className="btn">{t("coach.shopReady.cta")}</Link>
         </div>
       )}
 
-      {errorMsg && (
-        <div className="safety" style={{ marginTop: 12 }}>{errorMsg}</div>
-      )}
+      {errorMsg && <div className="safety" style={{ marginTop: 12 }}>{errorMsg}</div>}
 
       {state !== "done" && (
         <div className="card tight" style={{ marginTop: 14 }}>
           {quickReplies && quickReplies.length > 0 && (
             <div className="row" style={{ marginBottom: 8 }}>
               {quickReplies.map((q, i) => (
-                <button
-                  key={i}
-                  className="btn ghost small"
-                  onClick={() => send(q)}
-                  disabled={pending}
-                >
-                  {q}
-                </button>
+                <button key={i} className="btn ghost small" onClick={() => send(q)} disabled={pending}>{q}</button>
               ))}
             </div>
           )}
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Type your reply…"
+            placeholder={t("coach.composer.placeholder")}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
@@ -363,24 +318,18 @@ export default function CoachPage() {
           />
           <div className="row">
             <button className="btn" onClick={() => send()} disabled={pending || !draft.trim()}>
-              {pending ? "Sending…" : "Send"}
+              {pending ? t("coach.composer.sending") : t("coach.composer.send")}
             </button>
-            <button className="btn ghost" onClick={restart} disabled={pending}>
-              Start over
-            </button>
+            <button className="btn ghost" onClick={restart} disabled={pending}>{t("coach.composer.restart")}</button>
           </div>
-          <p className="muted" style={{ fontSize: 12 }}>
-            Press <span className="kbd">Cmd/Ctrl</span> + <span className="kbd">Enter</span> to send.
-          </p>
+          <p className="muted" style={{ fontSize: 12 }}>{t("coach.composer.shortcut", { kbd: "Cmd/Ctrl + Enter" })}</p>
         </div>
       )}
 
       {state === "done" && (
         <div className="row" style={{ marginTop: 14 }}>
-          {shopHandle && (
-            <Link href={`/shop/${shopHandle}`} className="btn">Open your page →</Link>
-          )}
-          <button className="btn ghost" onClick={restart}>Start a new plan</button>
+          {shopHandle && <Link href={`/shop/${shopHandle}`} className="btn">{t("coach.shopReady.cta")}</Link>}
+          <button className="btn ghost" onClick={restart}>{t("coach.done.newPlan")}</button>
         </div>
       )}
     </>

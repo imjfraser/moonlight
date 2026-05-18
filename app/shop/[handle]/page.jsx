@@ -1,14 +1,13 @@
 "use client";
 
-// /shop/[handle] — the page she shares when someone asks
-// "where can I see what you do?"
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { loadShop } from "../../lib/shop-store";
+import { useT } from "../../lib/i18n";
 
 export default function ShopPage() {
+  const t = useT();
   const params = useParams();
   const handle = String(params?.handle || "").toLowerCase();
   const [ready, setReady] = useState(false);
@@ -25,27 +24,21 @@ export default function ShopPage() {
     return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }, [shop]);
 
-  if (!ready) return <div className="card">Loading…</div>;
+  if (!ready) return <div className="card">{t("common.loading")}</div>;
 
   if (!shop) {
     return (
       <>
-        <h1>This page isn&apos;t set up yet</h1>
-        <p className="muted">
-          If you&apos;re the owner, finish the coach conversation first — your page
-          gets generated at the end.
-        </p>
-        <Link href="/architect" className="btn">Go to the coach →</Link>
+        <h1>{t("shop.notFoundTitle")}</h1>
+        <p className="muted">{t("shop.notFoundBody")}</p>
+        <Link href="/architect" className="btn">{t("shop.notFoundCta")}</Link>
       </>
     );
   }
 
-  const displayName = shop.showRealName
-    ? (shop.ownerRealName || shop.ownerPublicName)
-    : shop.ownerPublicName;
+  const displayName = shop.showRealName ? (shop.ownerRealName || shop.ownerPublicName) : shop.ownerPublicName;
   const offer = shop.offer || {};
   const sections = shop.sections || [];
-
   const promo = sections.find((s) => s.type === "promo");
   const ordered = sections.filter((s) => s.type !== "promo");
 
@@ -60,42 +53,31 @@ export default function ShopPage() {
         )}
 
         <div className="pv-hero">
-          <span style={{ fontSize: 12, letterSpacing: 1.5, color: "#7a5826" }}>
-            {offer.tagline || "a small business"}
-          </span>
+          <span style={{ fontSize: 12, letterSpacing: 1.5, color: "#7a5826" }}>{offer.tagline || ""}</span>
           <h2>{offer.name || displayName}</h2>
           <p>{offer.description}</p>
-          <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">
-            Message on WhatsApp
-          </a>
+          <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">{t("shop.messageWA")}</a>
         </div>
 
         <div className="pv-section">
-          <h3>About</h3>
-          <p>
-            I&apos;m {displayName}. I&apos;m taking on a small number of customers right now,
-            so I can do a great job for each one. Send me a message and I&apos;ll reply quickly.
-          </p>
-          {!shop.showRealName && (
-            <p style={{ fontSize: 13, color: "#777" }}>
-              I keep my real name and address private. Orders are confirmed by message.
-            </p>
-          )}
+          <h3>{t("shop.about")}</h3>
+          <p>{t("shop.about.body", { name: displayName })}</p>
+          {!shop.showRealName && <p style={{ fontSize: 13, color: "#777" }}>{t("shop.about.privacy")}</p>}
         </div>
 
         <div className="pv-section">
-          <h3>What you can order</h3>
+          <h3>{t("shop.whatToOrder")}</h3>
           <ul style={{ paddingLeft: 18 }}>
             <li><strong>{offer.name}</strong> — {offer.description}</li>
-            {offer.deliveryWindow && <li>Delivered: {offer.deliveryWindow}</li>}
+            {offer.deliveryWindow && <li>{t("shop.delivered")} {offer.deliveryWindow}</li>}
             {(offer.priceLocal || offer.priceUSD) && (
-              <li>From {offer.priceLocal || `USD ${offer.priceUSD}`}</li>
+              <li>{t("shop.from")} {offer.priceLocal || `USD ${offer.priceUSD}`}</li>
             )}
             {ordered.filter((s) => s.type === "service").map((s) => (
               <li key={s.id}>
                 <strong>{s.data.name}</strong> — {s.data.description}
                 {(s.data.priceLocal || s.data.priceUSD) && (
-                  <> · From {s.data.priceLocal || `USD ${s.data.priceUSD}`}</>
+                  <> · {t("shop.from")} {s.data.priceLocal || `USD ${s.data.priceUSD}`}</>
                 )}
               </li>
             ))}
@@ -129,21 +111,13 @@ export default function ShopPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
                   {withImages.map((p, i) => (
                     <figure key={i} style={{ margin: 0 }}>
-                      <img
-                        src={p.url}
-                        alt={p.caption || ""}
-                        style={{ width: "100%", borderRadius: 10, display: "block", border: "1px solid #eee" }}
-                      />
-                      {p.caption && (
-                        <figcaption style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
-                          {p.caption}
-                        </figcaption>
-                      )}
+                      <img src={p.url} alt={p.caption || ""} style={{ width: "100%", borderRadius: 10, display: "block", border: "1px solid #eee" }} />
+                      {p.caption && <figcaption style={{ fontSize: 12, color: "#666", marginTop: 4 }}>{p.caption}</figcaption>}
                     </figure>
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: "#999" }}>(Photos coming soon.)</p>
+                <p style={{ fontSize: 13, color: "#999" }}>{t("shop.photosComingSoon")}</p>
               )}
             </div>
           );
@@ -167,7 +141,7 @@ export default function ShopPage() {
             {s.data.url ? (
               <a className="pv-cta" href={s.data.url} target="_blank" rel="noreferrer">{s.data.label || "Book a time"}</a>
             ) : (
-              <p style={{ color: "#999" }}>(Booking link coming.)</p>
+              <p style={{ color: "#999" }}>{t("shop.bookingComing")}</p>
             )}
           </div>
         ))}
@@ -176,18 +150,18 @@ export default function ShopPage() {
           <div key={s.id} className="pv-section">
             <h3>{s.title}</h3>
             <p>{s.data.prompt}</p>
-            <p style={{ color: "#999", fontSize: 13 }}>(Email collection coming soon.)</p>
+            <p style={{ color: "#999", fontSize: 13 }}>{t("shop.emailComing")}</p>
           </div>
         ))}
 
         {ordered.filter((s) => s.type === "social").length > 0 && (
           <div className="pv-section">
-            <h3>Find me here too</h3>
+            <h3>{t("shop.findMeToo")}</h3>
             <ul style={{ paddingLeft: 18 }}>
               {ordered.filter((s) => s.type === "social").flatMap((s, gi) =>
                 (s.data.links || []).map((l, i) => (
                   <li key={`${gi}-${i}`}>
-                    <strong>{l.platform}:</strong> {l.url ? <a href={l.url}>{l.url}</a> : <span style={{ color: "#999" }}>(coming soon)</span>}
+                    <strong>{l.platform}:</strong> {l.url ? <a href={l.url}>{l.url}</a> : <span style={{ color: "#999" }}>{t("shop.socialComing")}</span>}
                   </li>
                 )),
               )}
@@ -196,25 +170,20 @@ export default function ShopPage() {
         )}
 
         <div className="pv-section">
-          <h3>How to order</h3>
-          <p>Send a message. Tell me what you&apos;d like. I&apos;ll reply quickly and confirm.</p>
-          <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">
-            Message me
-          </a>
+          <h3>{t("shop.howToOrder")}</h3>
+          <p>{t("shop.howToOrder.body")}</p>
+          <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">{t("shop.messageMe")}</a>
         </div>
 
         <div className="pv-section" style={{ background: "#fff7ea" }}>
-          <h3 style={{ marginTop: 0 }}>My promise</h3>
-          <p>
-            I do what I say I&apos;ll do, when I say I&apos;ll do it. If anything is off,
-            tell me first and I&apos;ll make it right.
-          </p>
+          <h3 style={{ marginTop: 0 }}>{t("shop.promise")}</h3>
+          <p>{t("shop.promise.body")}</p>
         </div>
       </div>
 
       <p className="muted" style={{ textAlign: "center", marginTop: 16, fontSize: 13 }}>
-        Page made with <Link href="/">Luz de Luna</Link> ·{" "}
-        <Link href="/me">Edit this page</Link>
+        {t("shop.footerMade")} <Link href="/">Luz de Luna</Link> ·{" "}
+        <Link href="/me">{t("shop.footerEdit")}</Link>
       </p>
     </>
   );

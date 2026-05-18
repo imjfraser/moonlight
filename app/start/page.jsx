@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { loadSession, saveSession, defaultSession } from "../lib/session";
+import { useT } from "../lib/i18n";
 
 const CHANNELS = [
   "WhatsApp",
@@ -17,16 +18,11 @@ const CHANNELS = [
   "Phone only",
 ];
 const HOURS = ["1-2", "3-4", "5-10", "10-20", "20+"];
-const OFFER_TYPES = [
-  { id: "service", label: "A service (I do something for people)" },
-  { id: "product", label: "A product (I sell or make something)" },
-  { id: "class",   label: "A class or lessons (I teach something)" },
-  { id: "content", label: "Content (videos, voice notes, writing)" },
-  { id: "unsure",  label: "I'm not sure yet" },
-];
+const OFFER_TYPE_IDS = ["service", "product", "class", "content", "unsure"];
 
 export default function StartIntake() {
   const router = useRouter();
+  const t = useT();
   const [s, setS] = useState(defaultSession);
   const [ready, setReady] = useState(false);
   const [step, setStep] = useState(0);
@@ -58,54 +54,34 @@ export default function StartIntake() {
   function back() { setStep((n) => Math.max(n - 1, 0)); }
   function finish() { router.push("/architect"); }
 
-  if (!ready) return <div className="card">Loading…</div>;
+  if (!ready) return <div className="card">{t("common.loading")}</div>;
 
   const i = s.intake;
   const STEPS = [
     {
-      title: "Hello — let's start small.",
+      title: t("intake.step1.title"),
       body: (
         <>
-          <p className="muted">
-            We'll ask a few simple questions. There are no wrong answers. You can change anything later.
-          </p>
-          <label className="field">What name would you like to be called?</label>
-          <input
-            value={i.name}
-            onChange={(e) => update("name", e.target.value)}
-            placeholder="Just a first name is fine"
-          />
-          <label className="field">Do you have a business idea already, or do you want help finding one?</label>
-          <textarea
-            value={i.askedFor}
-            onChange={(e) => update("askedFor", e.target.value)}
-            placeholder="e.g. people often ask me to braid their hair, or I'm not sure yet"
-          />
+          <p className="muted">{t("intake.step1.intro")}</p>
+          <label className="field">{t("intake.q.nameLabel")}</label>
+          <input value={i.name} onChange={(e) => update("name", e.target.value)} placeholder={t("intake.q.namePlaceholder")} />
+          <label className="field">{t("intake.q.ideaLabel")}</label>
+          <textarea value={i.askedFor} onChange={(e) => update("askedFor", e.target.value)} placeholder={t("intake.q.ideaPlaceholder")} />
         </>
       ),
     },
     {
-      title: "What are you good at?",
+      title: t("intake.step2.title"),
       body: (
         <>
-          <p className="muted">
-            Anything you do well counts — cooking, listening, fixing, selling, teaching, making.
-          </p>
-          <label className="field">List a few things you're good at, in your own words</label>
-          <textarea
-            value={i.skills}
-            onChange={(e) => update("skills", e.target.value)}
-            placeholder="e.g. I cook well, I'm patient with kids, I can sew, I'm good at making people feel welcome"
-          />
-          <label className="field">What kind of business sounds most like you?</label>
+          <p className="muted">{t("intake.step2.intro")}</p>
+          <label className="field">{t("intake.q.skillsLabel")}</label>
+          <textarea value={i.skills} onChange={(e) => update("skills", e.target.value)} placeholder={t("intake.q.skillsPlaceholder")} />
+          <label className="field">{t("intake.q.offerTypeLabel")}</label>
           <div style={{ display: "grid", gap: 8 }}>
-            {OFFER_TYPES.map((o) => (
-              <div
-                key={o.id}
-                className={"option " + (i.offerType === o.id ? "selected" : "")}
-                onClick={() => update("offerType", o.id)}
-              >
-                {o.label}
+            {OFFER_TYPE_IDS.map((id) => (
+              <div key={id} className={"option " + (i.offerType === id ? "selected" : "")} onClick={() => update("offerType", id)}>
+                {t(`intake.offerType.${id}`)}
               </div>
             ))}
           </div>
@@ -113,29 +89,21 @@ export default function StartIntake() {
       ),
     },
     {
-      title: "Your time and tools",
+      title: t("intake.step3.title"),
       body: (
         <>
-          <label className="field">How many hours each week could you give to this?</label>
+          <label className="field">{t("intake.q.hoursLabel")}</label>
           <div className="row">
             {HOURS.map((h) => (
-              <div
-                key={h}
-                className={"option " + (i.hoursPerWeek === h ? "selected" : "")}
-                onClick={() => update("hoursPerWeek", h)}
-              >
-                {h} hours
+              <div key={h} className={"option " + (i.hoursPerWeek === h ? "selected" : "")} onClick={() => update("hoursPerWeek", h)}>
+                {h} {t("intake.hours.suffix")}
               </div>
             ))}
           </div>
-          <label className="field">Which of these can you use? (pick any that apply)</label>
+          <label className="field">{t("intake.q.channelsLabel")}</label>
           <div className="row">
             {CHANNELS.map((c) => (
-              <div
-                key={c}
-                className={"option " + (i.channels.includes(c) ? "selected" : "")}
-                onClick={() => toggleChannel(c)}
-              >
+              <div key={c} className={"option " + (i.channels.includes(c) ? "selected" : "")} onClick={() => toggleChannel(c)}>
                 {c}
               </div>
             ))}
@@ -144,35 +112,19 @@ export default function StartIntake() {
       ),
     },
     {
-      title: "Safety and privacy",
+      title: t("intake.step4.title"),
       body: (
         <>
-          <div className="safety" style={{ marginBottom: 14 }}>
-            You are in control of what gets shared. We will hide what you ask to hide.
-          </div>
-          <label className="field">Are there safety or privacy worries we should think about?</label>
-          <textarea
-            value={i.safetyNotes}
-            onChange={(e) => update("safetyNotes", e.target.value)}
-            placeholder="e.g. don't show my full name, don't show my area, don't show my photo"
-          />
-          <label className="field">Do you want your real name shown on your business page?</label>
+          <div className="safety" style={{ marginBottom: 14 }}>{t("intake.step4.intro")}</div>
+          <label className="field">{t("intake.q.safetyLabel")}</label>
+          <textarea value={i.safetyNotes} onChange={(e) => update("safetyNotes", e.target.value)} placeholder={t("intake.q.safetyPlaceholder")} />
+          <label className="field">{t("intake.q.realNameLabel")}</label>
           <div className="row">
-            <div
-              className={"option " + (i.showRealName ? "selected" : "")}
-              onClick={() => update("showRealName", true)}
-            >Yes, my real name is fine</div>
-            <div
-              className={"option " + (!i.showRealName ? "selected" : "")}
-              onClick={() => update("showRealName", false)}
-            >No, please use a first name or nickname</div>
+            <div className={"option " + (i.showRealName ? "selected" : "")} onClick={() => update("showRealName", true)}>{t("intake.realName.yes")}</div>
+            <div className={"option " + (!i.showRealName ? "selected" : "")} onClick={() => update("showRealName", false)}>{t("intake.realName.no")}</div>
           </div>
-          <label className="field">A public name to use (optional)</label>
-          <input
-            value={i.publicName}
-            onChange={(e) => update("publicName", e.target.value)}
-            placeholder="e.g. Amina, or Little Moon Kitchen"
-          />
+          <label className="field">{t("intake.q.publicNameLabel")}</label>
+          <input value={i.publicName} onChange={(e) => update("publicName", e.target.value)} placeholder={t("intake.q.publicNamePlaceholder")} />
         </>
       ),
     },
@@ -183,20 +135,16 @@ export default function StartIntake() {
 
   return (
     <>
-      <span className="pill">Guided intake — step {step + 1} of {STEPS.length}</span>
+      <span className="pill">{t("intake.progress", { step: step + 1, total: STEPS.length })}</span>
       <h1>{current.title}</h1>
       <div className="card">{current.body}</div>
-
       <div className="row">
-        {step > 0 && <button className="btn ghost" onClick={back}>← Back</button>}
-        {!last && <button className="btn" onClick={next}>Continue →</button>}
-        {last && <button className="btn" onClick={finish}>Meet your coach →</button>}
-        <Link href="/" className="btn ghost">Save &amp; close</Link>
+        {step > 0 && <button className="btn ghost" onClick={back}>{t("intake.btnBack")}</button>}
+        {!last && <button className="btn" onClick={next}>{t("intake.btnContinue")}</button>}
+        {last && <button className="btn" onClick={finish}>{t("intake.btnMeetCoach")}</button>}
+        <Link href="/" className="btn ghost">{t("intake.btnSave")}</Link>
       </div>
-
-      <p className="muted" style={{ marginTop: 18, fontSize: 13 }}>
-        Your answers are saved only in this browser session for the prototype demo. Nothing is sent anywhere.
-      </p>
+      <p className="muted" style={{ marginTop: 18, fontSize: 13 }}>{t("intake.footnote")}</p>
     </>
   );
 }

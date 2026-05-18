@@ -1,10 +1,6 @@
 // Moonlight coach API route.
 // Receives intake + conversation history and returns Sol's next message
 // as a structured JSON object (see app/lib/coach-prompt.js for the schema).
-//
-// Expects ANTHROPIC_API_KEY in the environment.
-// Falls back to a small handcrafted offline coach if the key is missing,
-// so the demo doesn't break on day one.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { COACH_SYSTEM_PROMPT } from "../../lib/coach-prompt";
@@ -21,35 +17,32 @@ export async function POST(req) {
     return Response.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const { intake, messages } = body || {};
+  const { intake, messages, lang } = body || {};
   if (!intake || !Array.isArray(messages)) {
     return Response.json({ error: "missing_intake_or_messages" }, { status: 400 });
   }
 
-  // Compose the user-side context (intake snapshot) as a system-augmenting prefix.
   const intakeContext = formatIntake(intake);
+  const langName = lang === "es" ? "Spanish (LATAM, use tú not usted)" : "English";
+  const langDirective = `LANGUAGE — IMPORTANT: She has chosen ${langName}. Respond in ${langName} unless she clearly switches mid-conversation, in which case follow her lead. Keep the JSON output schema unchanged — only the prose values (message, quickReplies, proposedOffer.*, draftedMessage, marketingPlan.*, skillGapAdvice) should be in her language.`;
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    // Offline fallback — gives the UI something to render in dev / when the
-    // key isn't set yet. The first reply nudges James to add the key.
     return Response.json(offlineFallback(intake, messages));
   }
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    // Anthropic requires at least one message. The first turn of the
-    // conversation is initiated by the UI before the user has typed anything
-    // (so Sol can greet by name) — synthesise a kickoff user message in
-    // that case.
+    const kickoffEs = "Por favor empieza la conversación saludándome por mi nombre del intake y haciéndome la pregunta inicial del estado 'greeting'.";
+    const kickoffEn = "Please start the conversation by greeting me by my name from the intake and asking the opening question for the greeting state.";
     const messagesForClaude = messages.length > 0
       ? messages.map((m) => ({ role: m.role, content: m.content }))
-      : [{ role: "user", content: "Please start the conversation by greeting me by my name from the intake and asking the opening question for the greeting state." }];
+      : [{ role: "user", content: lang === "es" ? kickoffEs : kickoffEn }];
 
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: `${COACH_SYSTEM_PROMPT}\n\nHER INTAKE:\n${intakeContext}`,
+      system: `${COACH_SYSTEM_PROMPT}\n\n${langDirective}\n\nHER INTAKE:\n${intakeContext}`,
       messages: messagesForClaude,
     });
 
@@ -74,13 +67,12 @@ export async function POST(req) {
     console.error("coach api error", err);
     return Response.json(
       {
-        message:
-          "Sorry — I lost my connection for a moment. Let me know when you're ready to keep going.",
+        message: "Sorry — I lost my connection for a moment. Let me know when you're ready to keep going.",
         state: lastState(messages) || "greeting",
         quickReplies: ["Let's keep going", "Start over"],
         error: "upstream_error",
       },
-      { status: 200 }, // return 200 so the UI keeps the conversation alive
+      { status: 200 },
     );
   }
 }
@@ -103,25 +95,11 @@ function formatIntake(intake) {
 
 function safeParseJson(text) {
   if (!text) return null;
-  // Strip code fences if the model added them despite instructions.
-  const cleaned = text
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    // Try to find the first {...} block.
-    const m = cleaned.match(/\{[\s\S]*\}/);
-    if (m) {
-      try {
-        return JSON.parse(m[0]);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
+  const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  try { return JSON.parse(cleaned); } catch {}
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  return null;
 }
 
 function lastState(messages) {
@@ -132,8 +110,6 @@ function lastState(messages) {
   return null;
 }
 
-// Offline fallback coach — gives a useful experience even before
-// ANTHROPIC_API_KEY is configured. State machine matches the schema.
 function offlineFallback(intake, messages) {
   const turn = messages.filter((m) => m.role === "user").length;
   const name = (intake.name || "friend").split(" ")[0];
@@ -150,14 +126,14 @@ function offlineFallback(intake, messages) {
   }
   if (turn === 1) {
     return {
-      message: `Good. So your ${skill} is the thing. Now — could you imagine doing this for someone outside your neighbourhood? Like, an office that wants lunch once a week, or someone online who'd pay in dollars?`,
+      message: `Good. So your ${skill} is the thing. Now — could you imagine doing this for someone outside your neighbourhood?`,
       state: "skill_exploration",
       quickReplies: ["Yes, I could", "I'm not sure", "Tell me more"],
     };
   }
   if (turn === 2) {
     return {
-      message: `Think of one person you already know — a friend, a neighbour, a former co-worker — who would say yes if you offered them this today. Who is it?`,
+      message: `Think of one person you already know who would say yes if you offered them this today. Who is it?`,
       state: "first_customer_id",
       quickReplies: null,
     };
@@ -174,7 +150,7 @@ function offlineFallback(intake, messages) {
         priceLocal: "USD 25",
         deliveryWindow: "This week",
         firstCustomer: "Your first contact (the person you named).",
-        scalingPath: `Start with this one customer at USD 25. Once you've delivered to 3 customers, raise to USD 40. To reach USD 2,500/month from this skill, you'll likely want to package it for online clients — for example, ${skill} sessions for international customers who pay in USD, or a small monthly package (USD 300+) for repeat clients. We'll plan that next.`,
+        scalingPath: `Start with this one customer at USD 25. Once you've delivered to 3 customers, raise to USD 40. To reach USD 2,500/month, package it for online clients.`,
       },
       quickReplies: ["I like this", "Make it simpler", "Different price"],
     };
@@ -188,7 +164,7 @@ function offlineFallback(intake, messages) {
     };
   }
   return {
-    message: `Your page is ready: /shop/${slugify(publicName)}. Share that link when people ask. Now — go send the message. Talk soon.`,
+    message: `Your page is ready: /shop/${slugify(publicName)}.`,
     state: "done",
     shopHandle: slugify(publicName),
     quickReplies: null,

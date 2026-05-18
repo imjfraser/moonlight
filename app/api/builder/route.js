@@ -13,12 +13,14 @@ export async function POST(req) {
     return Response.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const { shop, messages } = body || {};
+  const { shop, messages, lang } = body || {};
   if (!shop || !Array.isArray(messages)) {
     return Response.json({ error: "missing_shop_or_messages" }, { status: 400 });
   }
 
   const context = formatShop(shop);
+  const langName = lang === "es" ? "Spanish (LATAM, use tú not usted)" : "English";
+  const langDirective = `LANGUAGE — IMPORTANT: Respond in ${langName} unless she clearly switches mid-conversation. Only the prose values in your JSON should be in her language; keys, type names, and tool names stay as-is.`;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(offlineBuilder(shop, messages));
@@ -26,14 +28,16 @@ export async function POST(req) {
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const kickoffEs = "Por favor salúdame y sugiere una cosa concreta que pueda agregar a mi página primero.";
+    const kickoffEn = "Please greet me and suggest one specific thing I could add to my page first.";
     const messagesForClaude = messages.length > 0
       ? messages.map((m) => ({ role: m.role, content: m.content }))
-      : [{ role: "user", content: "Please greet me and suggest one specific thing I could add to my page first." }];
+      : [{ role: "user", content: lang === "es" ? kickoffEs : kickoffEn }];
 
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: `${BUILDER_SYSTEM_PROMPT}\n\nHER PAGE RIGHT NOW:\n${context}`,
+      system: `${BUILDER_SYSTEM_PROMPT}\n\n${langDirective}\n\nHER PAGE RIGHT NOW:\n${context}`,
       messages: messagesForClaude,
     });
     const text = response.content
@@ -107,18 +111,16 @@ function offlineBuilder(shop, messages) {
   const existing = (shop.sections || []).map((s) => s.type);
 
   const intent = detectIntent(lastUser);
-  if (intent) {
-    return responseFor(intent, { owner, offerName, shop });
-  }
+  if (intent) return responseFor(intent, { owner, offerName, shop });
 
   const candidates = [
-    { type: "testimonial", title: "What people say", data: { quote: `${owner} did a great job — clear, on time, and easy to work with.`, author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer" }, message: `Let's add a short testimonial — even a placeholder one until you have a real quote.`, quickReplies: ["Add it", "Different wording", "Not yet"] },
+    { type: "testimonial", title: "What people say", data: { quote: `${owner} did a great job — clear, on time, and easy to work with.`, author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer" }, message: `Let's add a short testimonial.`, quickReplies: ["Add it", "Different wording", "Not yet"] },
     { type: "faq", title: "Common questions", data: { items: [{ q: "How fast do you reply?", a: "Usually within two hours during the day." }, { q: "How do I pay?", a: "Whatever works for you — bank transfer, mobile money, or in person." }, { q: "What if I'm not happy?", a: "Tell me first and I'll make it right." }] }, message: `Three short FAQs.`, quickReplies: ["Add it", "Different questions", "Not yet"] },
-    { type: "promo", title: "This week only", data: { headline: "First 3 customers — small bonus", detail: "Order this week and I'll throw in something extra.", until: "this Sunday" }, message: `Want a promo banner?`, quickReplies: ["Add it", "Stronger", "Not yet"] },
-    { type: "about-extra", title: "Why I started this", data: { heading: "A bit more about me", body: `I started ${offerName} because I noticed people kept asking me for the same kind of help.` }, message: `A short "about me" paragraph.`, quickReplies: ["Add it", "Different angle", "Not yet"] },
+    { type: "promo", title: "This week only", data: { headline: "First 3 customers — small bonus", detail: "Order this week and I'll throw in something extra.", until: "this Sunday" }, message: `Add a promo banner.`, quickReplies: ["Add it", "Stronger", "Not yet"] },
+    { type: "about-extra", title: "Why I started this", data: { heading: "A bit more about me", body: `I started ${offerName} because I noticed people kept asking me for the same kind of help.` }, message: `Two sentences about why you started.`, quickReplies: ["Add it", "Different angle", "Not yet"] },
     { type: "service", title: "Another option", data: { name: `${offerName} — bigger package`, description: "A larger version for customers who want more.", priceUSD: (shop.offer?.priceUSD || 25) * 4, priceLocal: `USD ${(shop.offer?.priceUSD || 25) * 4}`, deliveryWindow: "Within 2 weeks" }, message: `Add a second package.`, quickReplies: ["Add it", "Different price", "Not yet"] },
     { type: "social", title: "Find me here too", data: { links: [{ platform: "Instagram", url: "" }, { platform: "TikTok", url: "" }] }, message: `Link your other accounts.`, quickReplies: ["Add it", "Just one for now", "Not yet"] },
-    { type: "gallery", title: "My work", data: { title: "My work", photos: [{ url: "", caption: "A photo of your finished work" }, { url: "", caption: "You at work — even a quick selfie" }, { url: "", caption: "A happy customer (with their permission)" }] }, message: `Let's add a photo gallery.`, quickReplies: ["Add it", "Just one photo", "Not yet"] },
+    { type: "gallery", title: "My work", data: { title: "My work", photos: [{ url: "", caption: "A photo of your finished work" }, { url: "", caption: "You at work" }, { url: "", caption: "A happy customer" }] }, message: `Add a photo gallery.`, quickReplies: ["Add it", "Just one photo", "Not yet"] },
   ];
 
   const next = candidates.find((c) => !existing.includes(c.type)) || candidates[turn % candidates.length];
@@ -147,14 +149,14 @@ function detectIntent(text) {
 
 function responseFor(intent, ctx) {
   const { owner, offerName, shop } = ctx;
-  if (intent === "gallery") return { message: `Yes — photos make a huge difference. After you click "Add it", you can drop in actual photos from your phone or paste a URL.`, proposedSection: { type: "gallery", title: "My work", data: { title: "My work", photos: [{ url: "", caption: "A photo of your finished work" }, { url: "", caption: "You at work — even a quick selfie" }, { url: "", caption: "A happy customer (with their permission)" }] } }, quickReplies: ["Add it", "Just one photo", "Not yet"] };
-  if (intent === "testimonial") return { message: `Let's add a short testimonial — placeholder until you have a real quote.`, proposedSection: { type: "testimonial", title: "What people say", data: { quote: `${owner} did a great job — clear, on time, easy to work with.`, author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer" } }, quickReplies: ["Add it", "Different wording", "Not yet"] };
-  if (intent === "faq") return { message: `Three quick FAQs.`, proposedSection: { type: "faq", title: "Common questions", data: { items: [{ q: "How fast do you reply?", a: "Within two hours during the day." }, { q: "How do I pay?", a: "Whatever works for you — bank transfer, mobile money, or in person." }, { q: "What if I'm not happy?", a: "Tell me first and I'll make it right." }] } }, quickReplies: ["Add it", "Different questions", "Not yet"] };
-  if (intent === "promo") return { message: `Urgency works — let's add a banner.`, proposedSection: { type: "promo", title: "This week only", data: { headline: "First 3 customers — small bonus", detail: "Order this week and I'll throw in something extra.", until: "this Sunday" } }, quickReplies: ["Add it", "Stronger", "Not yet"] };
-  if (intent === "about-extra") return { message: `Two sentences about why you started this.`, proposedSection: { type: "about-extra", title: "Why I started this", data: { heading: "A bit more about me", body: `I started ${offerName} because people kept asking me for the same kind of help.` } }, quickReplies: ["Add it", "Different angle", "Not yet"] };
-  if (intent === "service") return { message: `A second package — different size, different price.`, proposedSection: { type: "service", title: "Another option", data: { name: `${offerName} — bigger package`, description: "A larger version for customers who want more.", priceUSD: (shop.offer?.priceUSD || 25) * 4, priceLocal: `USD ${(shop.offer?.priceUSD || 25) * 4}`, deliveryWindow: "Within 2 weeks" } }, quickReplies: ["Add it", "Different price", "Not yet"] };
-  if (intent === "booking") return { message: `Paste your Calendly or Cal.com URL after you add it.`, proposedSection: { type: "booking", title: "Book a time", data: { label: "Pick a time that works for you", url: "" } }, quickReplies: ["Add it", "Not yet"] };
-  if (intent === "newsletter") return { message: `For people who aren't ready to buy today.`, proposedSection: { type: "newsletter", title: "Stay in touch", data: { label: "Drop your email", prompt: "I'll write you when there's something new — no spam." } }, quickReplies: ["Add it", "Not yet"] };
+  if (intent === "gallery") return { message: `Photos make a huge difference. After you click "Add it", you can drop in actual photos from your phone or paste a URL.`, proposedSection: { type: "gallery", title: "My work", data: { title: "My work", photos: [{ url: "", caption: "A photo of your finished work" }, { url: "", caption: "You at work" }, { url: "", caption: "A happy customer" }] } }, quickReplies: ["Add it", "Just one photo", "Not yet"] };
+  if (intent === "testimonial") return { message: `Add a short testimonial — placeholder until you have a real quote.`, proposedSection: { type: "testimonial", title: "What people say", data: { quote: `${owner} did a great job.`, author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer" } }, quickReplies: ["Add it", "Different wording", "Not yet"] };
+  if (intent === "faq") return { message: `Three quick FAQs.`, proposedSection: { type: "faq", title: "Common questions", data: { items: [{ q: "How fast do you reply?", a: "Within two hours during the day." }, { q: "How do I pay?", a: "Whatever works for you." }, { q: "What if I'm not happy?", a: "Tell me first and I'll make it right." }] } }, quickReplies: ["Add it", "Different questions", "Not yet"] };
+  if (intent === "promo") return { message: `Add a promo banner.`, proposedSection: { type: "promo", title: "This week only", data: { headline: "First 3 customers — small bonus", detail: "Order this week and I'll throw in something extra.", until: "this Sunday" } }, quickReplies: ["Add it", "Stronger", "Not yet"] };
+  if (intent === "about-extra") return { message: `Two sentences about why you started this.`, proposedSection: { type: "about-extra", title: "Why I started this", data: { heading: "A bit more about me", body: `I started ${offerName} because people kept asking me for help.` } }, quickReplies: ["Add it", "Different angle", "Not yet"] };
+  if (intent === "service") return { message: `A second package — different size, different price.`, proposedSection: { type: "service", title: "Another option", data: { name: `${offerName} — bigger package`, description: "A larger version.", priceUSD: (shop.offer?.priceUSD || 25) * 4, priceLocal: `USD ${(shop.offer?.priceUSD || 25) * 4}`, deliveryWindow: "Within 2 weeks" } }, quickReplies: ["Add it", "Different price", "Not yet"] };
+  if (intent === "booking") return { message: `Paste your Calendly URL after you add it.`, proposedSection: { type: "booking", title: "Book a time", data: { label: "Pick a time", url: "" } }, quickReplies: ["Add it", "Not yet"] };
+  if (intent === "newsletter") return { message: `For people who aren't ready to buy today.`, proposedSection: { type: "newsletter", title: "Stay in touch", data: { label: "Drop your email", prompt: "I'll write you when there's something new." } }, quickReplies: ["Add it", "Not yet"] };
   if (intent === "social") return { message: `Link your other accounts.`, proposedSection: { type: "social", title: "Find me here too", data: { links: [{ platform: "Instagram", url: "" }, { platform: "TikTok", url: "" }] } }, quickReplies: ["Add it", "Just one for now", "Not yet"] };
   return null;
 }
