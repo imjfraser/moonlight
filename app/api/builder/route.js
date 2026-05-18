@@ -26,11 +26,15 @@ export async function POST(req) {
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const messagesForClaude = messages.length > 0
+      ? messages.map((m) => ({ role: m.role, content: m.content }))
+      : [{ role: "user", content: "Please greet me and suggest one specific thing I could add to my page first." }];
+
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: `${BUILDER_SYSTEM_PROMPT}\n\nHER PAGE RIGHT NOW:\n${context}`,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      messages: messagesForClaude,
     });
     const text = response.content
       .filter((b) => b.type === "text")
@@ -42,7 +46,7 @@ export async function POST(req) {
       return Response.json({
         message: "Let me try that again — could you tell me what you'd like to add?",
         proposedSection: null,
-        quickReplies: ["Add a photo", "Add a testimonial", "Add an FAQ"],
+        quickReplies: ["Add a testimonial", "Add another service", "Add an FAQ"],
         raw: text,
         error: "model_returned_non_json",
       });
@@ -81,7 +85,7 @@ function formatShop(shop) {
     }
   } else {
     lines.push("");
-    lines.push("EXISTING ADDITIONAL SECTIONS: (none yet)");
+    lines.push("EXISTING ADDITIONAL SECTIONS: (none yet — this is her chance to add the first)");
   }
   return lines.join("\n");
 }
@@ -95,8 +99,6 @@ function safeParseJson(text) {
   return null;
 }
 
-// Offline mode — keyword-matches her message so the fallback feels responsive,
-// otherwise cycles through useful suggestions.
 function offlineBuilder(shop, messages) {
   const turn = messages.filter((m) => m.role === "user").length;
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content?.toLowerCase() || "";
@@ -110,89 +112,13 @@ function offlineBuilder(shop, messages) {
   }
 
   const candidates = [
-    {
-      type: "testimonial",
-      title: "What people say",
-      data: {
-        quote: `${owner} did a great job — clear, on time, and easy to work with.`,
-        author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer",
-      },
-      message: `Let's add a short testimonial — even a placeholder until you have a real quote. People trust a page much more when there's a name and a sentence next to your offer.`,
-      quickReplies: ["Add it", "Different wording", "Not yet"],
-    },
-    {
-      type: "faq",
-      title: "Common questions",
-      data: {
-        items: [
-          { q: "How fast do you reply?", a: "Usually within two hours during the day." },
-          { q: "How do I pay?", a: "Whatever works for you — bank transfer, mobile money, or in person." },
-          { q: "What if I'm not happy?", a: "Tell me first and I'll make it right." },
-        ],
-      },
-      message: `Let's add three short FAQs — the ones customers always ask. It saves you typing the same answer ten times.`,
-      quickReplies: ["Add it", "Different questions", "Not yet"],
-    },
-    {
-      type: "promo",
-      title: "This week only",
-      data: {
-        headline: "First 3 customers — small bonus",
-        detail: "Order this week and I'll throw in something extra. Tell me you saw the page.",
-        until: "this Sunday",
-      },
-      message: `Want a promo banner for your first week? Urgency works — "first 3 customers" is a real reason to act today, not next month.`,
-      quickReplies: ["Add it", "Make it stronger", "Not yet"],
-    },
-    {
-      type: "about-extra",
-      title: "Why I started this",
-      data: {
-        heading: "A bit more about me",
-        body: `I started ${offerName} because I noticed people kept asking me for the same kind of help. I take one customer at a time so I can do it well.`,
-      },
-      message: `Let's add a short "about me" paragraph. Two sentences is enough — it makes the page feel like a person, not a brochure.`,
-      quickReplies: ["Add it", "Different angle", "Not yet"],
-    },
-    {
-      type: "service",
-      title: "Another option",
-      data: {
-        name: `${offerName} — bigger package`,
-        description: "A larger version for customers who want more than the starter.",
-        priceUSD: (shop.offer?.priceUSD || 25) * 4,
-        priceLocal: `USD ${(shop.offer?.priceUSD || 25) * 4}`,
-        deliveryWindow: "Within 2 weeks",
-      },
-      message: `Let's add a second option — a bigger package for customers who want more. Even just two price points doubles your average sale.`,
-      quickReplies: ["Add it", "Different price", "Not yet"],
-    },
-    {
-      type: "social",
-      title: "Find me here too",
-      data: {
-        links: [
-          { platform: "Instagram", url: "" },
-          { platform: "TikTok", url: "" },
-        ],
-      },
-      message: `Want to link your other accounts? Instagram and TikTok are the easiest ways for new customers to recognise you.`,
-      quickReplies: ["Add it", "Just one for now", "Not yet"],
-    },
-    {
-      type: "gallery",
-      title: "My work",
-      data: {
-        title: "My work",
-        photos: [
-          { url: "", caption: "A photo of your finished work" },
-          { url: "", caption: "You at work — even a quick selfie" },
-          { url: "", caption: "A happy customer (with their permission)" },
-        ],
-      },
-      message: `Let's add a photo gallery. Three photos is enough: one of your work, one of you, one of a happy customer.`,
-      quickReplies: ["Add it", "Just one photo", "Not yet"],
-    },
+    { type: "testimonial", title: "What people say", data: { quote: `${owner} did a great job — clear, on time, and easy to work with.`, author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer" }, message: `Let's add a short testimonial — even a placeholder one until you have a real quote.`, quickReplies: ["Add it", "Different wording", "Not yet"] },
+    { type: "faq", title: "Common questions", data: { items: [{ q: "How fast do you reply?", a: "Usually within two hours during the day." }, { q: "How do I pay?", a: "Whatever works for you — bank transfer, mobile money, or in person." }, { q: "What if I'm not happy?", a: "Tell me first and I'll make it right." }] }, message: `Three short FAQs.`, quickReplies: ["Add it", "Different questions", "Not yet"] },
+    { type: "promo", title: "This week only", data: { headline: "First 3 customers — small bonus", detail: "Order this week and I'll throw in something extra.", until: "this Sunday" }, message: `Want a promo banner?`, quickReplies: ["Add it", "Stronger", "Not yet"] },
+    { type: "about-extra", title: "Why I started this", data: { heading: "A bit more about me", body: `I started ${offerName} because I noticed people kept asking me for the same kind of help.` }, message: `A short "about me" paragraph.`, quickReplies: ["Add it", "Different angle", "Not yet"] },
+    { type: "service", title: "Another option", data: { name: `${offerName} — bigger package`, description: "A larger version for customers who want more.", priceUSD: (shop.offer?.priceUSD || 25) * 4, priceLocal: `USD ${(shop.offer?.priceUSD || 25) * 4}`, deliveryWindow: "Within 2 weeks" }, message: `Add a second package.`, quickReplies: ["Add it", "Different price", "Not yet"] },
+    { type: "social", title: "Find me here too", data: { links: [{ platform: "Instagram", url: "" }, { platform: "TikTok", url: "" }] }, message: `Link your other accounts.`, quickReplies: ["Add it", "Just one for now", "Not yet"] },
+    { type: "gallery", title: "My work", data: { title: "My work", photos: [{ url: "", caption: "A photo of your finished work" }, { url: "", caption: "You at work — even a quick selfie" }, { url: "", caption: "A happy customer (with their permission)" }] }, message: `Let's add a photo gallery.`, quickReplies: ["Add it", "Just one photo", "Not yet"] },
   ];
 
   const next = candidates.find((c) => !existing.includes(c.type)) || candidates[turn % candidates.length];
@@ -221,138 +147,14 @@ function detectIntent(text) {
 
 function responseFor(intent, ctx) {
   const { owner, offerName, shop } = ctx;
-  if (intent === "gallery") {
-    return {
-      message: `Yes — photos make a huge difference. I'll add a gallery section. After you click "Add it", you can drop in actual photos from your phone or paste an Instagram URL.`,
-      proposedSection: {
-        type: "gallery",
-        title: "My work",
-        data: {
-          title: "My work",
-          photos: [
-            { url: "", caption: "A photo of your finished work" },
-            { url: "", caption: "You at work — even a quick selfie" },
-            { url: "", caption: "A happy customer (with their permission)" },
-          ],
-        },
-      },
-      quickReplies: ["Add it", "Just one photo", "Not yet"],
-    };
-  }
-  if (intent === "testimonial") {
-    return {
-      message: `Let's add a short testimonial — even a placeholder until you have a real quote.`,
-      proposedSection: {
-        type: "testimonial",
-        title: "What people say",
-        data: {
-          quote: `${owner} did a great job — clear, on time, and easy to work with.`,
-          author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer",
-        },
-      },
-      quickReplies: ["Add it", "Different wording", "Not yet"],
-    };
-  }
-  if (intent === "faq") {
-    return {
-      message: `Three quick FAQs — the questions customers ask most.`,
-      proposedSection: {
-        type: "faq",
-        title: "Common questions",
-        data: {
-          items: [
-            { q: "How fast do you reply?", a: "Usually within two hours during the day." },
-            { q: "How do I pay?", a: "Whatever works for you — bank transfer, mobile money, or in person." },
-            { q: "What if I'm not happy?", a: "Tell me first and I'll make it right." },
-          ],
-        },
-      },
-      quickReplies: ["Add it", "Different questions", "Not yet"],
-    };
-  }
-  if (intent === "promo") {
-    return {
-      message: `Urgency works — let's add a banner.`,
-      proposedSection: {
-        type: "promo",
-        title: "This week only",
-        data: {
-          headline: "First 3 customers — small bonus",
-          detail: "Order this week and I'll throw in something extra. Tell me you saw the page.",
-          until: "this Sunday",
-        },
-      },
-      quickReplies: ["Add it", "Stronger", "Not yet"],
-    };
-  }
-  if (intent === "about-extra") {
-    return {
-      message: `Two sentences about why you started this — make the page feel like a person.`,
-      proposedSection: {
-        type: "about-extra",
-        title: "Why I started this",
-        data: {
-          heading: "A bit more about me",
-          body: `I started ${offerName} because I noticed people kept asking me for the same kind of help. I take one customer at a time so I can do it well.`,
-        },
-      },
-      quickReplies: ["Add it", "Different angle", "Not yet"],
-    };
-  }
-  if (intent === "service") {
-    return {
-      message: `Let's add a second package — different size, different price.`,
-      proposedSection: {
-        type: "service",
-        title: "Another option",
-        data: {
-          name: `${offerName} — bigger package`,
-          description: "A larger version for customers who want more than the starter.",
-          priceUSD: (shop.offer?.priceUSD || 25) * 4,
-          priceLocal: `USD ${(shop.offer?.priceUSD || 25) * 4}`,
-          deliveryWindow: "Within 2 weeks",
-        },
-      },
-      quickReplies: ["Add it", "Different price", "Not yet"],
-    };
-  }
-  if (intent === "booking") {
-    return {
-      message: `A booking link saves you the back-and-forth. Paste a Calendly or Cal.com URL after you add it.`,
-      proposedSection: {
-        type: "booking",
-        title: "Book a time",
-        data: { label: "Pick a time that works for you", url: "" },
-      },
-      quickReplies: ["Add it", "Not yet"],
-    };
-  }
-  if (intent === "newsletter") {
-    return {
-      message: `For people who aren't ready to buy today — let them leave their email.`,
-      proposedSection: {
-        type: "newsletter",
-        title: "Stay in touch",
-        data: { label: "Drop your email", prompt: "I'll write you when there's something new — no spam." },
-      },
-      quickReplies: ["Add it", "Not yet"],
-    };
-  }
-  if (intent === "social") {
-    return {
-      message: `Let's link your other accounts so new customers can recognise you.`,
-      proposedSection: {
-        type: "social",
-        title: "Find me here too",
-        data: {
-          links: [
-            { platform: "Instagram", url: "" },
-            { platform: "TikTok", url: "" },
-          ],
-        },
-      },
-      quickReplies: ["Add it", "Just one for now", "Not yet"],
-    };
-  }
+  if (intent === "gallery") return { message: `Yes — photos make a huge difference. After you click "Add it", you can drop in actual photos from your phone or paste a URL.`, proposedSection: { type: "gallery", title: "My work", data: { title: "My work", photos: [{ url: "", caption: "A photo of your finished work" }, { url: "", caption: "You at work — even a quick selfie" }, { url: "", caption: "A happy customer (with their permission)" }] } }, quickReplies: ["Add it", "Just one photo", "Not yet"] };
+  if (intent === "testimonial") return { message: `Let's add a short testimonial — placeholder until you have a real quote.`, proposedSection: { type: "testimonial", title: "What people say", data: { quote: `${owner} did a great job — clear, on time, easy to work with.`, author: shop.offer?.firstCustomer?.split(/[—,.]/)[0]?.trim() || "Your first customer" } }, quickReplies: ["Add it", "Different wording", "Not yet"] };
+  if (intent === "faq") return { message: `Three quick FAQs.`, proposedSection: { type: "faq", title: "Common questions", data: { items: [{ q: "How fast do you reply?", a: "Within two hours during the day." }, { q: "How do I pay?", a: "Whatever works for you — bank transfer, mobile money, or in person." }, { q: "What if I'm not happy?", a: "Tell me first and I'll make it right." }] } }, quickReplies: ["Add it", "Different questions", "Not yet"] };
+  if (intent === "promo") return { message: `Urgency works — let's add a banner.`, proposedSection: { type: "promo", title: "This week only", data: { headline: "First 3 customers — small bonus", detail: "Order this week and I'll throw in something extra.", until: "this Sunday" } }, quickReplies: ["Add it", "Stronger", "Not yet"] };
+  if (intent === "about-extra") return { message: `Two sentences about why you started this.`, proposedSection: { type: "about-extra", title: "Why I started this", data: { heading: "A bit more about me", body: `I started ${offerName} because people kept asking me for the same kind of help.` } }, quickReplies: ["Add it", "Different angle", "Not yet"] };
+  if (intent === "service") return { message: `A second package — different size, different price.`, proposedSection: { type: "service", title: "Another option", data: { name: `${offerName} — bigger package`, description: "A larger version for customers who want more.", priceUSD: (shop.offer?.priceUSD || 25) * 4, priceLocal: `USD ${(shop.offer?.priceUSD || 25) * 4}`, deliveryWindow: "Within 2 weeks" } }, quickReplies: ["Add it", "Different price", "Not yet"] };
+  if (intent === "booking") return { message: `Paste your Calendly or Cal.com URL after you add it.`, proposedSection: { type: "booking", title: "Book a time", data: { label: "Pick a time that works for you", url: "" } }, quickReplies: ["Add it", "Not yet"] };
+  if (intent === "newsletter") return { message: `For people who aren't ready to buy today.`, proposedSection: { type: "newsletter", title: "Stay in touch", data: { label: "Drop your email", prompt: "I'll write you when there's something new — no spam." } }, quickReplies: ["Add it", "Not yet"] };
+  if (intent === "social") return { message: `Link your other accounts.`, proposedSection: { type: "social", title: "Find me here too", data: { links: [{ platform: "Instagram", url: "" }, { platform: "TikTok", url: "" }] } }, quickReplies: ["Add it", "Just one for now", "Not yet"] };
   return null;
 }

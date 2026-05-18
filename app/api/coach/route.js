@@ -38,14 +38,19 @@ export async function POST(req) {
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+    // Anthropic requires at least one message. The first turn of the
+    // conversation is initiated by the UI before the user has typed anything
+    // (so Sol can greet by name) — synthesise a kickoff user message in
+    // that case.
+    const messagesForClaude = messages.length > 0
+      ? messages.map((m) => ({ role: m.role, content: m.content }))
+      : [{ role: "user", content: "Please start the conversation by greeting me by my name from the intake and asking the opening question for the greeting state." }];
+
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: `${COACH_SYSTEM_PROMPT}\n\nHER INTAKE:\n${intakeContext}`,
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      messages: messagesForClaude,
     });
 
     const text = response.content
@@ -140,7 +145,6 @@ function offlineFallback(intake, messages) {
       message: `Hi ${name}. I'm Sol — your coach. I heard you're good at ${skill}. Let me ask you one thing first: what's the thing people already pay you for, or would pay you for tomorrow if you asked them today?`,
       state: "greeting",
       quickReplies: null,
-      // Surface the missing-key issue once so James notices.
       notice: "Running in offline mode — set ANTHROPIC_API_KEY for the real coach.",
     };
   }
