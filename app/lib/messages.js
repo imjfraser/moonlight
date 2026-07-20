@@ -18,7 +18,7 @@ export const messages = {
   "nav.start":   { en: "Start",        es: "Empezar" },
   "nav.coach":   { en: "Coach",        es: "Coach" },
   "nav.myPage":  { en: "My page",      es: "Mi página" },
-  "nav.funding": { en: "Funding",      es: "Financiación" },
+  "nav.funding": { en: "Proposal",     es: "Propuesta" },
 
   "footer.body": {
     en: "Luz de Luna — a small, private business coach. Your answers stay in your browser unless you choose to share them.",
