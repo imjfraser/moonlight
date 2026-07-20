@@ -15,7 +15,7 @@ export default function Home() {
 
       <div className="row">
         <Link href="/start" className="btn">{t("landing.ctaStart")}</Link>
-        <Link href="/funding" className="btn ghost">{t("landing.ctaFunders")}</Link>
+        <a href="/proposal" className="btn ghost">{t("landing.ctaFunders")}</a>
       </div>
 
       <div className="grid-2" style={{ marginTop: 22 }}>

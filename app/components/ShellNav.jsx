@@ -25,7 +25,7 @@ export default function ShellNav() {
         <Link href="/start">{t("nav.start")}</Link>
         <Link href="/architect">{t("nav.coach")}</Link>
         <Link href="/me">{t("nav.myPage")}</Link>
-        <Link href="/funding">{t("nav.funding")}</Link>
+        <a href="/proposal">{t("nav.funding")}</a>
         <LanguageToggle />
       </div>
     </nav>
