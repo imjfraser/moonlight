@@ -80,3 +80,6 @@ sudo cp /etc/caddy/Caddyfile.bak-20260517-moonlight /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 # Optionally: rm -rf /home/ubuntu/moonlight
 ```
+
+## Proposal page — added 2026-07-20
+Static partner/funder proposal at public/proposal.html. Live at https://luzdeluna.app/proposal via a Caddy rewrite [rewrite /proposal /proposal.html] in /etc/caddy/Caddyfile, and also directly at /proposal.html. NOTE: because next.config uses output standalone and start.sh runs next start, files added to public/ are only served after a moonlight.service restart. Caddyfile backup before this change: /etc/caddy/Caddyfile.bak-20260720-proposal.
