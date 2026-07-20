@@ -6,3 +6,6 @@ node_modules
 *.log
 .DS_Store
 *.bak-*
+
+# server-side participant data (SQLite)
+data/

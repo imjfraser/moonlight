@@ -1,6 +1,7 @@
 import "./globals.css";
 import ShellNav from "./components/ShellNav";
 import ShellFooter from "./components/ShellFooter";
+import Boot from "./components/Boot";
 
 export const metadata = {
   title: "Luz de Luna — un coach de negocios en tu bolsillo",
@@ -12,6 +13,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
+        <Boot />
         <div className="shell">
           <ShellNav />
           {children}

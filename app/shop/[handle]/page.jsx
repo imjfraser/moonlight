@@ -14,8 +14,28 @@ export default function ShopPage() {
   const [shop, setShop] = useState(null);
 
   useEffect(() => {
-    setShop(loadShop(handle));
-    setReady(true);
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/shops/${encodeURIComponent(handle)}`);
+        if (res.ok) {
+          const { shop } = await res.json();
+          if (alive && shop) {
+            setShop(shop);
+            setReady(true);
+            return;
+          }
+        }
+      } catch {}
+      // Fallback to a local copy (the creator's own browser) if the server has none.
+      if (alive) {
+        setShop(loadShop(handle));
+        setReady(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [handle]);
 
   const waLink = useMemo(() => {
