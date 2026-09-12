@@ -6,6 +6,8 @@
 import { NextResponse } from "next/server";
 import { getDb } from "../../lib/db";
 import { resolveParticipant } from "../../lib/participant";
+import { normalizeShop, normalizeHandle, SHOP_BODY_LIMIT } from "../../lib/shop-contract.mjs";
+import { readRequestJson } from "../../lib/request-json.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,22 +23,24 @@ export async function GET() {
     const s = safeParse(r.shop_json);
     if (s) shops[r.handle] = s;
   }
-  return NextResponse.json({ shops });
+  return NextResponse.json({ shops }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PUT(req) {
-  const id = await resolveParticipant();
-  let body;
+  let handle, shop;
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    const body = await readRequestJson(req, SHOP_BODY_LIMIT + 4096);
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+        Object.keys(body).some(key => !["handle", "shop"].includes(key))) {
+      throw new Error("invalid_shop");
+    }
+    handle = normalizeHandle(body.handle);
+    shop = normalizeShop(body.shop, handle);
+  } catch (error) {
+    const tooLarge = error.status === 413;
+    return NextResponse.json({ error: tooLarge ? "payload_too_large" : "invalid_shop" }, { status: tooLarge ? 413 : 400 });
   }
-  const handle = String(body?.handle || "").toLowerCase().trim();
-  const shop = body?.shop;
-  if (!handle || !shop) {
-    return NextResponse.json({ error: "missing_handle_or_shop" }, { status: 400 });
-  }
+  const id = await resolveParticipant();
 
   const db = getDb();
   const existing = db.prepare("SELECT participant_id FROM shops WHERE handle = ?").get(handle);
@@ -57,7 +61,7 @@ export async function PUT(req) {
       "INSERT INTO timeline (participant_id, kind, summary, data_json) VALUES (?, 'shop_created', ?, ?)"
     ).run(id, "Shop page created: " + handle, JSON.stringify({ handle }));
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
 
 function safeParse(s) {
