@@ -51,6 +51,20 @@ This repository is a prototype, not a declaration of production readiness.
 - `coach-prompt.js` is unchanged; shared persistence supports the entire
   participant journey.
 
+## Continuing with Sol
+
+The coach remains available after the initial plan. Reload restores existing
+business artifacts, and failed user turns stay in the saved/draft conversation
+for retry without duplication. Every provider request waits for journey-save
+acknowledgement; failed saves must be resolved first. Starting a new plan requires
+confirmation and does not delete an existing shop.
+
+The coach publishes missing shops through the same validated owner store used by
+`/me`, reports actual publication status, and never automatically replaces an
+existing owner's offer, contact or sections. Historical unbound browser caches
+are not imported; a missing shop can be rebuilt from the current participant's
+already-saved coach artifacts. This is not account recovery.
+
 ## Main routes
 
 | Route | Purpose |

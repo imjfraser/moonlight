@@ -122,7 +122,7 @@ function offlineFallback(intake, messages) {
     };
   }
   return {
-    message: `Your page is ready: /shop/${slugify(publicName)}.`,
+    message: `Your page draft is prepared for /shop/${slugify(publicName)}. Check the publication status below before sharing it.`,
     state: "done",
     shopHandle: slugify(publicName),
     quickReplies: null,

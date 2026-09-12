@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { loadSession, saveSession, defaultSession, getSessionCacheScope, invalidateSessionIdentity } from "../lib/session";
+import { loadSession, saveSession, defaultSession, getSessionCacheScope, invalidateSessionIdentity, subscribeSession, getSessionStatus } from "../lib/session";
 import { useT, useLang } from "../lib/i18n";
 import { boundedCoachHistory } from "../lib/coach-contract.mjs";
+import { journeyView, hasIntake, appendCoachReply, resetCoachJourney, missingShopDraft, waitForJourneySave } from "../lib/coach-journey.mjs";
+import { hydrateShops, loadShop, saveShop, retryShop, getShopStatus } from "../lib/shop-store";
+import CoachPublication from "../components/CoachPublication";
+
+const INITIAL_SAVE = { status: "loading", ready: false };
 
 export default function CoachPage() {
-  const router = useRouter();
   const t = useT();
   const lang = useLang();
+  const persistence = useSyncExternalStore(subscribeSession, getSessionStatus, () => INITIAL_SAVE);
+  const saveReady = persistence.status === "saved" || persistence.status === "ready";
   const [s, setS] = useState(defaultSession);
   const [ready, setReady] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -26,56 +31,90 @@ export default function CoachPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const scrollRef = useRef(null);
 
+  const mounted = useRef(false);
+  const request = useRef(null);
+
+  function showSession(next) {
+    const view = journeyView(next);
+    setS(next); setMessages(view.messages); setState(view.state); setQuickReplies(view.quickReplies);
+    setProposedOffer(view.proposedOffer); setDraftedMessage(view.draftedMessage);
+    setShopHandle(view.shopHandle); setSkillGapAdvice(view.skillGapAdvice); setMarketingPlan(view.marketingPlan);
+  }
+
+  async function recoverPublication() {
+    const scope = getSessionCacheScope();
+    if (!scope) return;
+    await hydrateShops();
+    if (!mounted.current || getSessionCacheScope() !== scope || getShopStatus().status === "failed") return;
+    const latest = loadSession();
+    const handle = journeyView(latest).shopHandle;
+    if (!handle) return;
+    const existing = loadShop(handle);
+    const fresh = missingShopDraft(latest, existing);
+    if (fresh) saveShop(handle, fresh);
+    else if (getShopStatus(handle).status === "failed") await retryShop(handle);
+  }
+
   useEffect(() => {
-    const cur = loadSession();
-    setS(cur);
-    setReady(true);
-    if (!cur.coachConversation || cur.coachConversation.length === 0) {
-      sendToCoach([], cur.intake);
-    } else {
-      setMessages(cur.coachConversation);
-      const last = [...cur.coachConversation].reverse().find((m) => m.role === "assistant");
-      if (last) {
-        setState(last.state || "greeting");
-        setQuickReplies(last.quickReplies || null);
-        setProposedOffer(last.proposedOffer || null);
-        setDraftedMessage(last.draftedMessage || null);
-        setShopHandle(last.shopHandle || null);
-        setSkillGapAdvice(last.skillGapAdvice || null);
-        setMarketingPlan(last.marketingPlan || null);
+    mounted.current = true;
+    let cancelled = false;
+    const scope = getSessionCacheScope();
+    // Awaiting hydration also prevents Strict Mode's discarded effect from kicking off a request.
+    void (async () => {
+      await hydrateShops();
+      if (cancelled || !mounted.current || getSessionCacheScope() !== scope) return;
+      const cur = loadSession();
+      showSession(cur); setReady(true);
+      if (getShopStatus().status !== "failed") {
+        const view = journeyView(cur);
+        const fresh = missingShopDraft(cur, view.shopHandle ? loadShop(view.shopHandle) : null);
+        if (fresh) saveShop(fresh.handle, fresh);
       }
-    }
+      if (hasIntake(cur) && !(cur.coachConversation || []).length) void sendToCoach(cur);
+    })();
+    return () => {
+      cancelled = true;
+      mounted.current = false;
+      request.current?.abort();
+      request.current = null;
+    };
+    // Initialization deliberately uses the canonical store, not captured render state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, pending]);
 
-  async function sendToCoach(history, intake) {
+  async function sendToCoach(snapshot = loadSession()) {
+    if (request.current || !hasIntake(snapshot)) return;
     const sendingScope = getSessionCacheScope();
-    setPending(true);
-    setErrorMsg("");
+    if (!sendingScope) return;
+    const controller = new AbortController();
+    request.current = controller;
+    const history = snapshot.coachConversation || [];
+    const fingerprint = JSON.stringify(history);
+    const current = () => mounted.current && request.current === controller && getSessionCacheScope() === sendingScope;
+    setPending(true); setErrorMsg("");
     try {
+      await waitForJourneySave(subscribeSession, getSessionStatus, controller.signal);
+      if (!current()) return;
+      if (JSON.stringify(loadSession().coachConversation || []) !== fingerprint) {
+        showSession(loadSession());
+        setErrorMsg(lang === "es" ? "La conversación cambió. Continúa desde la versión guardada." : "The conversation changed. Continue from the saved version.");
+        return;
+      }
       const res = await fetch("/api/coach", {
-        method: "POST",
+        method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          intake: intake || s.intake,
-          messages: boundedCoachHistory(history),
-          cacheScope: sendingScope,
-          lang,
-        }),
+        body: JSON.stringify({ intake: snapshot.intake, messages: boundedCoachHistory(history), cacheScope: sendingScope, lang }),
       });
-      if (getSessionCacheScope() !== sendingScope) return;
+      if (!current()) return;
       if (!res.ok) {
         const failure = await res.json().catch(() => ({}));
-        if (getSessionCacheScope() !== sendingScope) return;
+        if (!current()) return;
         if (res.status === 409 && failure.error === "cache_scope_mismatch") {
-          invalidateSessionIdentity();
-          return;
+          invalidateSessionIdentity(); return;
         }
         const seconds = Math.max(1, Math.min(3600, Number(res.headers.get("Retry-After")) || 60));
         setErrorMsg(res.status === 429
@@ -86,119 +125,66 @@ export default function CoachPage() {
         return;
       }
       const data = await res.json();
-      if (getSessionCacheScope() !== sendingScope) return;
-      const assistantMsg = {
-        role: "assistant",
-        content: data.message || "(no reply)",
-        state: data.state || "greeting",
-        quickReplies: data.quickReplies || null,
-        proposedOffer: data.proposedOffer || null,
-        draftedMessage: data.draftedMessage || null,
-        shopHandle: data.shopHandle || null,
-        skillGapAdvice: data.skillGapAdvice || null,
-        marketingPlan: data.marketingPlan || null,
-        notice: data.notice || null,
-      };
-      const newMessages = [...history, assistantMsg];
-      setMessages(newMessages);
-      setState(assistantMsg.state);
-      setQuickReplies(assistantMsg.quickReplies);
-      if (assistantMsg.proposedOffer) setProposedOffer(assistantMsg.proposedOffer);
-      if (assistantMsg.draftedMessage) setDraftedMessage(assistantMsg.draftedMessage);
-      if (assistantMsg.shopHandle) setShopHandle(assistantMsg.shopHandle);
-      if (assistantMsg.skillGapAdvice) setSkillGapAdvice(assistantMsg.skillGapAdvice);
-      if (assistantMsg.marketingPlan) setMarketingPlan(assistantMsg.marketingPlan);
-
-      const next = {
-        ...s,
-        intake: intake || s.intake,
-        coachConversation: newMessages,
-        coachState: assistantMsg.state,
-        proposedOffer: assistantMsg.proposedOffer || proposedOffer,
-        draftedMessage: assistantMsg.draftedMessage || draftedMessage,
-        shopHandle: assistantMsg.shopHandle || shopHandle,
-        skillGapAdvice: assistantMsg.skillGapAdvice || skillGapAdvice,
-        marketingPlan: assistantMsg.marketingPlan || marketingPlan,
-      };
-
-      const finalHandle = assistantMsg.shopHandle || shopHandle;
-      const finalOffer = assistantMsg.proposedOffer || proposedOffer;
-      if (finalHandle && finalOffer && typeof window !== "undefined") {
-        const shopRec = {
-          handle: finalHandle,
-          ownerPublicName: (next.intake.publicName || next.intake.name || "").trim() || "Owner",
-          showRealName: !!next.intake.showRealName,
-          ownerRealName: next.intake.name || "",
-          offer: finalOffer,
-          contact: { channels: next.intake.channels || ["WhatsApp"] },
-          savedAt: new Date().toISOString(),
-        };
-        try {
-          const all = JSON.parse(window.localStorage.getItem("moonlight.shops") || "{}");
-          all[finalHandle] = shopRec;
-          window.localStorage.setItem("moonlight.shops", JSON.stringify(all));
-        } catch {}
+      if (!current()) return;
+      const latest = loadSession();
+      if (JSON.stringify(latest.coachConversation || []) !== fingerprint) {
+        showSession(latest);
+        setErrorMsg(lang === "es" ? "La conversación cambió. Continúa desde la versión guardada." : "The conversation changed. Continue from the saved version.");
+        return;
       }
-
-      saveSession(next);
-      setS(next);
-    } catch {
-      if (getSessionCacheScope() === sendingScope) setErrorMsg(t("common.connectionHiccup"));
+      const assistantMsg = {
+        role: "assistant", content: data.message || "(no reply)", state: data.state || "greeting",
+        quickReplies: data.quickReplies || null, proposedOffer: data.proposedOffer || null,
+        draftedMessage: data.draftedMessage || null, shopHandle: data.shopHandle || null,
+        skillGapAdvice: data.skillGapAdvice || null, marketingPlan: data.marketingPlan || null, notice: data.notice || null,
+      };
+      const next = appendCoachReply(latest, history, assistantMsg);
+      saveSession(next); showSession(next);
+      // Existing owner-edited pages are never auto-replaced by a repeated offer.
+      if (assistantMsg.shopHandle || assistantMsg.proposedOffer) {
+        const handle = journeyView(next).shopHandle;
+        if (handle && getShopStatus().status !== "failed") {
+          const fresh = missingShopDraft(next, loadShop(handle));
+          if (fresh) saveShop(handle, fresh);
+        }
+      }
+    } catch (error) {
+      if (current() && error.name !== "AbortError") setErrorMsg(["journey_not_saved", "journey_save_timeout"].includes(error.message)
+        ? (lang === "es" ? "Primero reintenta guardar tu conversación arriba. Tu mensaje sigue aquí." : "First retry saving your conversation above. Your message is still here.")
+        : t("common.connectionHiccup"));
     } finally {
-      if (getSessionCacheScope() === sendingScope) setPending(false);
+      if (current()) setPending(false);
+      if (request.current === controller) request.current = null;
     }
   }
 
   function send(text) {
     const value = (text ?? draft).trim().slice(0, 4000);
-    if (!value || pending) return;
-    const userMsg = { role: "user", content: value };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setDraft("");
-    setQuickReplies(null);
-    sendToCoach(newMessages);
+    if (!value || request.current || !saveReady) return;
+    const latest = loadSession();
+    const next = { ...latest, coachConversation: [...(latest.coachConversation || []), { role: "user", content: value }] };
+    saveSession(next); showSession(next); setDraft(""); setQuickReplies(null);
+    void sendToCoach(next);
+  }
+
+  function retryTurn() {
+    if (!request.current && saveReady) void sendToCoach(loadSession());
   }
 
   function copyMessage() {
-    if (typeof navigator !== "undefined" && navigator.clipboard && draftedMessage) {
-      navigator.clipboard.writeText(draftedMessage);
-    }
+    if (navigator.clipboard && draftedMessage) navigator.clipboard.writeText(draftedMessage).catch(() => setErrorMsg(lang === "es" ? "No se pudo copiar. Selecciona y copia el texto." : "Could not copy. Select and copy the text."));
   }
-
   function whatsappLink() {
-    if (!draftedMessage) return "#";
-    return `https://wa.me/?text=${encodeURIComponent(draftedMessage)}`;
+    return draftedMessage ? `https://wa.me/?text=${encodeURIComponent(draftedMessage)}` : "#";
   }
-
   function copyHook() {
-    if (typeof navigator !== "undefined" && navigator.clipboard && marketingPlan?.examplePostHook) {
-      navigator.clipboard.writeText(marketingPlan.examplePostHook);
-    }
+    if (navigator.clipboard && marketingPlan?.examplePostHook) navigator.clipboard.writeText(marketingPlan.examplePostHook).catch(() => setErrorMsg(lang === "es" ? "No se pudo copiar. Selecciona y copia el texto." : "Could not copy. Select and copy the text."));
   }
-
   function restart() {
-    const next = {
-      ...s,
-      coachConversation: [],
-      coachState: null,
-      proposedOffer: null,
-      draftedMessage: null,
-      shopHandle: null,
-      skillGapAdvice: null,
-      marketingPlan: null,
-    };
-    saveSession(next);
-    setMessages([]);
-    setState("greeting");
-    setQuickReplies(null);
-    setProposedOffer(null);
-    setDraftedMessage(null);
-    setShopHandle(null);
-    setSkillGapAdvice(null);
-    setMarketingPlan(null);
-    setS(next);
-    sendToCoach([], next.intake);
+    if (request.current || !window.confirm(lang === "es" ? "¿Empezar un nuevo plan? Se reemplazará esta conversación y su plan; tu página existente no se borrará." : "Start a new plan? This conversation and its plan will be replaced; your existing page will not be deleted.")) return;
+    const next = resetCoachJourney(loadSession());
+    saveSession(next); showSession(next); setDraft("");
+    void sendToCoach(next);
   }
 
   if (!ready) return <div className="card">{t("common.loading")}</div>;
@@ -304,28 +290,23 @@ export default function CoachPage() {
         </div>
       )}
 
-      {shopHandle && (
-        <div className="card sage">
-          <span className="pill sage">{t("coach.shopReady.pill")}</span>
-          <h3 style={{ marginTop: 8 }}>{t("coach.shopReady.title")}</h3>
-          <p>{t("coach.shopReady.body")}</p>
-          <Link href={`/shop/${shopHandle}`} className="btn">{t("coach.shopReady.cta")}</Link>
-        </div>
-      )}
+      {shopHandle && <CoachPublication handle={shopHandle} lang={lang} onRetry={() => void recoverPublication()} />}
 
-      {errorMsg && <div className="safety" style={{ marginTop: 12 }}>{errorMsg}</div>}
+      {errorMsg && <div className="safety" role="alert" style={{ marginTop: 12 }}>{errorMsg}</div>}
+      {!pending && (errorMsg || messages.at(-1)?.role === "user") && <button type="button" className="btn ghost" disabled={!saveReady} onClick={retryTurn}>{lang === "es" ? "Reintentar respuesta de Sol" : "Retry Sol’s reply"}</button>}
 
-      {state !== "done" && (
+      {(
         <div className="card tight" style={{ marginTop: 14 }}>
           {quickReplies && quickReplies.length > 0 && (
             <div className="row" style={{ marginBottom: 8 }}>
               {quickReplies.map((q, i) => (
-                <button key={i} className="btn ghost small" onClick={() => send(q)} disabled={pending}>{q}</button>
+                <button key={i} className="btn ghost small" onClick={() => send(q)} disabled={pending || !saveReady}>{q}</button>
               ))}
             </div>
           )}
           <textarea
             maxLength={4000}
+            aria-label={t("coach.composer.placeholder")}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={t("coach.composer.placeholder")}
@@ -337,21 +318,16 @@ export default function CoachPage() {
             }}
           />
           <div className="row">
-            <button className="btn" onClick={() => send()} disabled={pending || !draft.trim()}>
+            <button className="btn" onClick={() => send()} disabled={pending || !saveReady || !draft.trim()}>
               {pending ? t("coach.composer.sending") : t("coach.composer.send")}
             </button>
-            <button className="btn ghost" onClick={restart} disabled={pending}>{t("coach.composer.restart")}</button>
+            <button className="btn ghost" onClick={restart} disabled={pending || !saveReady}>{t("coach.composer.restart")}</button>
           </div>
           <p className="muted" style={{ fontSize: 12 }}>{t("coach.composer.shortcut", { kbd: "Cmd/Ctrl + Enter" })}</p>
         </div>
       )}
 
-      {state === "done" && (
-        <div className="row" style={{ marginTop: 14 }}>
-          {shopHandle && <Link href={`/shop/${shopHandle}`} className="btn">{t("coach.shopReady.cta")}</Link>}
-          <button className="btn ghost" onClick={restart}>{t("coach.done.newPlan")}</button>
-        </div>
-      )}
+
     </>
   );
 }

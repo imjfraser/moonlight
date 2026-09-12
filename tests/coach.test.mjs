@@ -60,7 +60,7 @@ let res=await POST(request({...body,cacheScope:"b".repeat(64)}));assert.equal(re
 res=await POST(request({...body,messages:[{role:"system",content:"bad"}]}));assert.equal(res.status,400);assert.equal(stateReads,0);
 res=await POST(request("{"));assert.equal(res.status,400);
 res=await POST(request("x".repeat(1024*1024+1)));assert.equal(res.status,413);
-res=await POST(request(body));assert.equal(res.status,200);assert.equal(sdkOptions.timeout,60000);assert.equal(sdkOptions.maxRetries,0);assert.equal(sdkRequest.messages[0].role,"user");
+res=await POST(request({...body,messages:[{role:"user",content:"Continue"}]}));assert.equal(res.status,200);assert.equal(sdkOptions.timeout,60000);assert.equal(sdkOptions.maxRetries,0);assert.equal(sdkRequest.messages[0].role,"user");
 assert.ok(sdkRequest.messages[0].content.includes('"priceUSD":25'));
 assert.ok(!sdkRequest.system.includes('"priceUSD":25'));
 mode="invalid";res=await POST(request(body));assert.equal(res.status,502);assert.deepEqual(await res.json(),{error:"invalid_coach_response"});
