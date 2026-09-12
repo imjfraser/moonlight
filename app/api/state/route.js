@@ -1,54 +1,64 @@
-// Participant journey state: the structured business memory (intake, chosen
-// idea, offer, price, brief, kit). One row per participant, keyed by the cookie
-// identity. This is the durable replacement for the old sessionStorage blob.
-
+// Participant journey persistence. Optimistic revisions prevent stale clients
+// from silently overwriting newer state; profile fields commit atomically.
 import { NextResponse } from "next/server";
 import { getDb } from "../../lib/db";
 import { resolveParticipant } from "../../lib/participant";
+import { MAX_STATE_BYTES, readState, saveState, validateStateWrite } from "../../lib/state-store.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const responseHeaders = { "Cache-Control": "no-store" };
+
 export async function GET() {
   const id = await resolveParticipant();
-  const db = getDb();
-  const row = db
-    .prepare("SELECT state_json FROM participant_state WHERE participant_id = ?")
-    .get(id);
-  return NextResponse.json({ state: row ? safeParse(row.state_json) : null });
+  return NextResponse.json(readState(getDb(), id), { headers: responseHeaders });
 }
 
 export async function PUT(req) {
-  const id = await resolveParticipant();
+  // Limit the full request, including chunked bodies, before parsing JSON.
+  const reader = req.body?.getReader();
+  if (!reader) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const chunks = [];
+  let size = 0;
+  const maxRequestBytes = MAX_STATE_BYTES + 4096;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxRequestBytes) {
+        await reader.cancel();
+        return NextResponse.json({ error: "state_too_large" }, { status: 413 });
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  } finally {
+    reader.releaseLock();
+  }
+
   let body;
   try {
-    body = await req.json();
+    body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
-  const state = body?.state ?? {};
-  const db = getDb();
-  db.prepare(
-    `INSERT INTO participant_state (participant_id, state_json, updated_at)
-     VALUES (?, ?, datetime('now'))
-     ON CONFLICT(participant_id)
-     DO UPDATE SET state_json = excluded.state_json, updated_at = datetime('now')`
-  ).run(id, JSON.stringify(state));
-
-  // Keep the participant's display fields in step with her intake.
-  const intake = state?.intake || {};
-  db.prepare("UPDATE participants SET display_name = ?, public_name = ? WHERE id = ?").run(
-    intake.name || null,
-    intake.publicName || null,
-    id
-  );
-  return NextResponse.json({ ok: true });
-}
-
-function safeParse(s) {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
+  const error = validateStateWrite(body);
+  if (error) {
+    return NextResponse.json({ error }, { status: error === "state_too_large" ? 413 : 400 });
   }
+
+  const id = await resolveParticipant();
+  const result = saveState(getDb(), id, body.state, body.baseRevision);
+  if (result.conflict) {
+    return NextResponse.json(
+      { error: "revision_conflict", state: result.state, revision: result.revision },
+      { status: 409, headers: responseHeaders }
+    );
+  }
+  return NextResponse.json({ ok: true, revision: result.revision }, { headers: responseHeaders });
 }

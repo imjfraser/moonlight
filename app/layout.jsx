@@ -13,10 +13,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <Boot />
         <div className="shell">
           <ShellNav />
-          {children}
+          <Boot>{children}</Boot>
           <ShellFooter />
         </div>
       </body>
