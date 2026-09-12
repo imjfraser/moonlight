@@ -2,7 +2,7 @@
 // from silently overwriting newer state; profile fields commit atomically.
 import { NextResponse } from "next/server";
 import { getDb } from "../../lib/db";
-import { resolveParticipant } from "../../lib/participant";
+import { resolveParticipant, participantCacheScope } from "../../lib/participant";
 import { MAX_STATE_BYTES, readState, saveState, validateStateWrite } from "../../lib/state-store.mjs";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ const responseHeaders = { "Cache-Control": "no-store" };
 
 export async function GET() {
   const id = await resolveParticipant();
-  return NextResponse.json(readState(getDb(), id), { headers: responseHeaders });
+  return NextResponse.json({ ...readState(getDb(), id), cacheScope: participantCacheScope(id) }, { headers: responseHeaders });
 }
 
 export async function PUT(req) {
@@ -53,6 +53,9 @@ export async function PUT(req) {
   }
 
   const id = await resolveParticipant();
+  if (body.cacheScope !== participantCacheScope(id)) {
+    return NextResponse.json({ error: "cache_scope_mismatch" }, { status: 409, headers: responseHeaders });
+  }
   const result = saveState(getDb(), id, body.state, body.baseRevision);
   if (result.conflict) {
     return NextResponse.json(

@@ -37,3 +37,5 @@ export async function resolveParticipant() {
   });
   return id;
 }
+
+export { participantCacheScope } from "./cache-scope.mjs";

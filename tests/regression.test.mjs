@@ -78,15 +78,16 @@ function storage(){const map=new Map();return {getItem:k=>map.get(k)??null,setIt
 let sessionSequence=0;
 async function session(mockFetch){globalThis.window={localStorage:storage(),sessionStorage:storage(),location:{reload(){}}};globalThis.fetch=mockFetch;const code=await readFile(`${root}/app/lib/session.js`,'utf8');return import(`data:text/javascript;base64,${Buffer.from(code+`\n// test instance ${++sessionSequence}`).toString('base64')}`);}
 async function settle(predicate){for(let n=0;n<100;n++){if(predicate())return;await new Promise(resolve=>setImmediate(resolve));}assert.fail('async state did not settle');}
-const response=(body,status=200)=>({ok:status===200,status,json:async()=>body});
+const SCOPE = 'a'.repeat(64);
+const response=(body,status=200)=>({ok:status===200,status,json:async()=>({cacheScope:SCOPE,...body})});
 test('session failures retain draft and retry against unchanged revision',async()=>{
  const originalFetch=globalThis.fetch, originalWindow=globalThis.window;
  try {
   const writes=[];let fail=true;
   const s=await session(async(_url,options={})=>{if(options.method!=='PUT')return response({state:{},revision:'r1'}); writes.push(JSON.parse(options.body));return fail?response({},503):response({revision:'r2'});});
   await s.hydrateSession();s.saveSession({brief:'unsaved'});await settle(()=>s.getSessionStatus().status==='failed');
-  assert.equal(s.loadSession().brief,'unsaved');assert.ok(window.sessionStorage.getItem('moonlight.session.pending.v2'));
-  fail=false;await s.retrySession();assert.equal(s.getSessionStatus().status,'saved');assert.equal(writes[1].baseRevision,'r1');assert.equal(window.sessionStorage.getItem('moonlight.session.pending.v2'),null);
+  assert.equal(s.loadSession().brief,'unsaved');assert.ok(window.sessionStorage.getItem('moonlight.session.pending.v3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'));
+  fail=false;await s.retrySession();assert.equal(s.getSessionStatus().status,'saved');assert.equal(writes[1].baseRevision,'r1');assert.equal(window.sessionStorage.getItem('moonlight.session.pending.v3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),null);
  } finally {globalThis.fetch=originalFetch;if(originalWindow===undefined)delete globalThis.window;else globalThis.window=originalWindow;}
 });
 test('session serializes overlapping saves with newest server revision; conflicts never auto-rebase',async()=>{
@@ -97,7 +98,7 @@ test('session serializes overlapping saves with newest server revision; conflict
   await s.hydrateSession();s.saveSession({brief:'first'});s.saveSession({brief:'second'});
   assert.equal(writes.length,1);finishFirst(response({revision:'r2'}));await settle(()=>s.getSessionStatus().status==='failed');
   assert.equal(writes[1].baseRevision,'r2');assert.equal(writes[1].state.brief,'second');assert.equal(s.getSessionStatus().error,'conflict');
-  await s.retrySession();assert.equal(writes.length,2);assert.equal(s.loadSession().brief,'second');assert.ok(window.sessionStorage.getItem('moonlight.session.pending.v2'));
+  await s.retrySession();assert.equal(writes.length,2);assert.equal(s.loadSession().brief,'second');assert.ok(window.sessionStorage.getItem('moonlight.session.pending.v3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'));
  } finally {globalThis.fetch=originalFetch;if(originalWindow===undefined)delete globalThis.window;else globalThis.window=originalWindow;}
 });
 
@@ -114,25 +115,33 @@ test('server state revision rejects stale save and rolls back paired profile upd
  }finally{db.close();}
 });
 
-async function shopStore(mockFetch){globalThis.window={localStorage:storage()};globalThis.fetch=mockFetch;const code=await readFile(`${root}/app/lib/shop-store.js`,'utf8');return import(`data:text/javascript;base64,${Buffer.from(code+`\n// test instance ${++sessionSequence}`).toString('base64')}`);}
+async function shopStore(mockFetch){
+ globalThis.window={localStorage:storage(),sessionStorage:storage()};globalThis.fetch=mockFetch;
+ const sessionCode=await readFile(`${root}/app/lib/session.js`,'utf8');
+ const sessionUrl=`data:text/javascript;base64,${Buffer.from(sessionCode+`\n// test instance ${++sessionSequence}`).toString('base64')}`;
+ const sessionModule=await import(sessionUrl);
+ globalThis.fetch=async()=>response({state:{},revision:'r1'});await sessionModule.hydrateSession();globalThis.fetch=mockFetch;
+ const code=(await readFile(`${root}/app/lib/shop-store.js`,'utf8')).replace('"./session"',JSON.stringify(sessionUrl));
+ return import(`data:text/javascript;base64,${Buffer.from(code+`\n// test instance ${++sessionSequence}`).toString('base64')}`);
+}
 test('failed shop publication preserves draft and retry publishes a constructor handle',async()=>{
  const originalFetch=globalThis.fetch,originalWindow=globalThis.window;
  try {
   let fail=true;const writes=[];
-  const s=await shopStore(async(_url,options={})=>{writes.push(JSON.parse(options.body));return fail?response({},503):response({ok:true});});
-  assert.equal(s.loadShop('constructor'),null);s.saveShop('constructor',{...shop(),handle:'constructor'});
+  const s=await shopStore(async(_url,options={})=>{if(options.method!=='PUT')return response({shops:{}});writes.push(JSON.parse(options.body));return fail?response({},503):response({ok:true});});
+  await s.hydrateShops();assert.equal(s.loadShop('constructor'),null);s.saveShop('constructor',{...shop(),handle:'constructor'});
   await settle(()=>s.getShopStatus('constructor').status==='failed');
   assert.equal(s.getShopStatus('constructor').error,'publish_failed');assert.equal(s.loadShop('constructor').ownerPublicName,'Public');
-  assert.equal(JSON.parse(window.localStorage.getItem('moonlight.shops.pending.v2')).constructor.handle,'constructor');
+  assert.equal(JSON.parse(window.sessionStorage.getItem('moonlight.shops.pending.v3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')).constructor.handle,'constructor');
   fail=false;await s.retryShop('constructor');assert.equal(s.getShopStatus('constructor').status,'published');
-  assert.equal(Object.hasOwn(JSON.parse(window.localStorage.getItem('moonlight.shops.pending.v2')),'constructor'),false);assert.equal(writes.length,2);
+  assert.equal(Object.hasOwn(JSON.parse(window.sessionStorage.getItem('moonlight.shops.pending.v3:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')),'constructor'),false);assert.equal(writes.length,2);
  }finally{globalThis.fetch=originalFetch;if(originalWindow===undefined)delete globalThis.window;else globalThis.window=originalWindow;}
 });
 test('stale shop hydration cannot overwrite a successful newer publication',async()=>{
  const originalFetch=globalThis.fetch,originalWindow=globalThis.window;
  try {
-  let finishGet;const s=await shopStore(async(_url,options={})=>options.method==='PUT'?response({ok:true}):new Promise(resolve=>{finishGet=resolve;}));
-  const hydration=s.hydrateShops();s.saveShop('sample',{...shop(),ownerPublicName:'New publication'});
+  let finishGet,initial=true;const s=await shopStore(async(_url,options={})=>{if(options.method==='PUT')return response({ok:true});if(initial){initial=false;return response({shops:{}});}return new Promise(resolve=>{finishGet=resolve;});});
+  await s.hydrateShops();const hydration=s.hydrateShops();s.saveShop('sample',{...shop(),ownerPublicName:'New publication'});
   await settle(()=>s.getShopStatus('sample').status==='published');finishGet(response({shops:{sample:{...shop(),ownerPublicName:'Old server response'}}}));
   await hydration;assert.equal(s.loadShop('sample').ownerPublicName,'New publication');assert.equal(s.getShopStatus('sample').status,'published');
  }finally{globalThis.fetch=originalFetch;if(originalWindow===undefined)delete globalThis.window;else globalThis.window=originalWindow;}

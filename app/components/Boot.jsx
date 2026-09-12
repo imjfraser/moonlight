@@ -1,29 +1,35 @@
 "use client";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { hydrateSession, subscribeSession, getSessionStatus, retrySession, discardDraftAndReload, downloadSessionDraft } from "../lib/session";
+import { hydrateSession, subscribeSession, getSessionStatus, retrySession, discardDraftAndReload, downloadSessionDraft, getSessionCacheScope } from "../lib/session";
 import { useLang } from "../lib/i18n";
-import { hydrateShops } from "../lib/shop-store";
-let shopsHydration;
+import { hydrateShops, getShopCacheScope } from "../lib/shop-store";
 const INITIAL = { status: "loading", ready: false, error: null };
 const JOURNEY = ["/start", "/architect", "/brief", "/kit", "/preview", "/me"];
 export default function Boot({ children }) {
   const path = usePathname();
   const active = JOURNEY.includes(path);
   const state = useSyncExternalStore(subscribeSession, getSessionStatus, () => INITIAL);
-  const [shopsReady, setShopsReady] = useState(false);
+  const [shopsScope, setShopsScope] = useState();
+  const [shopsFailed, setShopsFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
   const es = useLang() === "es";
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
     void (async () => {
       await hydrateSession();
-      shopsHydration ||= hydrateShops();
-      await shopsHydration;
-      if (!cancelled) setShopsReady(true);
+      const scope = getSessionCacheScope();
+      if (!scope) return;
+      await hydrateShops();
+      if (!cancelled && getSessionCacheScope() === scope) {
+        const matched = getShopCacheScope() === scope;
+        setShopsScope(matched ? scope : undefined);
+        setShopsFailed(!matched);
+      }
     })();
     return () => { cancelled = true; };
-  }, [active]);
+  }, [active, state.cacheScope, retry]);
   if (!active) return children;
   const labels = es
     ? { loading: "Cargando…", ready: "Listo", saving: "Guardando…", saved: "Guardado", failed: "No se pudo sincronizar. Tu borrador no se ha descartado." }
@@ -39,6 +45,10 @@ export default function Boot({ children }) {
         </> : <button onClick={() => void retrySession()}>{es ? "Reintentar" : "Retry"}</button>}
       </>}
     </div>
-    {state.ready && shopsReady ? children : null}
+    {state.ready && shopsFailed && <div role="alert" className="card">
+      {es ? "No se pudieron cargar tus páginas. Reintenta para continuar." : "Your shop pages could not be loaded. Retry to continue."}{" "}
+      <button onClick={() => setRetry(value => value + 1)}>{es ? "Reintentar" : "Retry"}</button>
+    </div>}
+    {state.ready && state.cacheScope && shopsScope === state.cacheScope ? <Fragment key={state.cacheScope}>{children}</Fragment> : null}
   </>;
 }

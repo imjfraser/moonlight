@@ -1,11 +1,21 @@
 // Owner shop cache with serialized publication and recoverable unsent drafts.
-const KEY = "moonlight.shops";
-const DRAFTS = "moonlight.shops.pending.v2";
+import { getSessionCacheScope, invalidateSessionIdentity, subscribeSession } from "./session";
+const KEY = "moonlight.shops.v3";
+const DRAFTS = "moonlight.shops.pending.v3";
+let cacheScope;
 let cache;
 let drafts;
 const jobs = new Map();
 const generations = new Map();
 let hydration;
+export const getShopCacheScope = () => cacheScope;
+function clearMemory() {
+  cacheScope = undefined; cache = dictionary(); drafts = dictionary();
+  statuses.clear(); generations.clear(); jobs.clear();
+}
+subscribeSession(() => {
+  if (cacheScope && getSessionCacheScope() !== cacheScope) { clearMemory(); emit(null, "ready"); }
+});
 function changed(handle) { generations.set(handle, (generations.get(handle) || 0) + 1); }
 const listeners = new Set();
 const DEFAULT = { status: "ready", error: null };
@@ -20,20 +30,20 @@ function emit(handle, status, error = null) {
 }
 function dictionary(value = {}) { return Object.assign(Object.create(null), value); }
 function own(value, key) { return Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined; }
-function read(key) {
-  try { const value = JSON.parse(window.localStorage.getItem(key) || "{}"); return value && typeof value === "object" && !Array.isArray(value) ? dictionary(value) : dictionary(); } catch { return dictionary(); }
+function read(key, storage = "localStorage") {
+  try { const value = JSON.parse(window[storage].getItem(key) || "{}"); return value && typeof value === "object" && !Array.isArray(value) ? dictionary(value) : dictionary(); } catch { return dictionary(); }
 }
 function readAll() {
   if (typeof window === "undefined") return dictionary();
-  return cache ||= read(KEY);
+  return cache ||= dictionary();
 }
 function writeAll(all) {
   cache = dictionary(all);
-  try { window.localStorage.setItem(KEY, JSON.stringify(all)); } catch {}
+  try { window.localStorage.setItem(`${KEY}:${cacheScope}`, JSON.stringify(all)); } catch {}
 }
-function pendingDrafts() { return drafts ||= read(DRAFTS); }
+function pendingDrafts() { return drafts ||= dictionary(); }
 function journal() {
-  try { window.localStorage.setItem(DRAFTS, JSON.stringify(pendingDrafts())); } catch {}
+  try { window.sessionStorage.setItem(`${DRAFTS}:${cacheScope}`, JSON.stringify(pendingDrafts())); } catch {}
 }
 function pushShop(handle, shop) {
   pendingDrafts()[handle] = shop;
@@ -41,31 +51,40 @@ function pushShop(handle, shop) {
   if (getShopStatus(handle).status !== "failed") void publish(handle);
 }
 async function publish(handle) {
+  if (!cacheScope) return;
+  const sendingScope = cacheScope;
   if (jobs.has(handle)) return jobs.get(handle);
   const task = (async () => {
     emit(handle, "saving");
     try {
-      while (pendingDrafts()[handle]) {
+      while (cacheScope === sendingScope && pendingDrafts()[handle]) {
         const sending = pendingDrafts()[handle];
         const res = await fetch("/api/shops", {
           method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ handle, shop: sending }),
+          body: JSON.stringify({ handle, shop: sending, cacheScope: sendingScope }),
         });
+        const result = await res.json();
+        if (cacheScope !== sendingScope) return;
         if (!res.ok) {
+          if (result.error === "cache_scope_mismatch") { invalidateIdentity(); return; }
           throw new Error(res.status === 409 ? "handle_taken" : res.status === 413 ? "too_large" : res.status === 400 ? "invalid_shop" : "publish_failed");
         }
-        const result = await res.json();
         if (result.ok !== true) throw new Error("publish_failed");
         changed(handle);
         if (pendingDrafts()[handle] === sending) delete pendingDrafts()[handle];
         journal();
       }
-      emit(handle, "published");
-    } catch (error) { emit(handle, "failed", error.message); }
+      if (cacheScope === sendingScope) emit(handle, "published");
+    } catch (error) { if (cacheScope === sendingScope) emit(handle, "failed", error.message); }
   })();
   jobs.set(handle, task);
   await task;
-  jobs.delete(handle);
+  if (jobs.get(handle) === task) jobs.delete(handle);
+}
+function invalidateIdentity() {
+  clearMemory();
+  emit(null, "failed", "identity_changed");
+  invalidateSessionIdentity();
 }
 export function retryShop(handle) {
   if (pendingDrafts()[handle]) return publish(handle);
@@ -74,7 +93,7 @@ export function retryShop(handle) {
 export function loadShops() { return readAll(); }
 export function loadShop(handle) { return own(readAll(), handle) || null; }
 export function saveShop(handle, shop) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !cacheScope) return null;
   const next = { ...shop, handle, updatedAt: new Date().toISOString() };
   changed(handle);
   writeAll({ ...readAll(), [handle]: next });
@@ -106,11 +125,23 @@ export async function hydrateShops() {
 }
 async function hydrate() {
   const started = new Map(generations);
+  const startedSessionScope = getSessionCacheScope();
   try {
     const res = await fetch("/api/shops", { cache: "no-store" });
     if (!res.ok) throw new Error("load_failed");
-    const { shops } = await res.json();
-    if (!shops || typeof shops !== "object" || Array.isArray(shops)) throw new Error("load_failed");
+    const { shops, cacheScope: scope } = await res.json();
+    if (!shops || typeof shops !== "object" || Array.isArray(shops) ||
+        typeof scope !== "string" || !/^[a-f0-9]{64}$/.test(scope)) throw new Error("load_failed");
+    const sessionScope = getSessionCacheScope();
+    if (!sessionScope || sessionScope !== startedSessionScope) return;
+    if ((sessionScope && sessionScope !== scope) || (cacheScope && cacheScope !== scope)) {
+      invalidateIdentity(); return;
+    }
+    if (!cacheScope) {
+      cacheScope = scope;
+      cache = dictionary();
+      drafts = read(`${DRAFTS}:${scope}`, "sessionStorage");
+    }
     const local = readAll();
     const safe = dictionary();
     for (const [handle, shop] of Object.entries(shops)) {
@@ -122,11 +153,7 @@ async function hydrate() {
     for (const handle of Object.keys(pendingDrafts())) {
       if (!jobs.has(handle)) emit(handle, "failed", "unsent_draft");
     }
-    for (const [handle, shop] of Object.entries(local)) {
-      if (!own(shops, handle) && !pendingDrafts()[handle] && !jobs.has(handle) && (generations.get(handle) || 0) === (started.get(handle) || 0)) {
-        emit(handle, "ready"); pushShop(handle, shop);
-      }
-    }
+    // No cache-to-server migration: only a deliberate edit/retry publishes.
   } catch {
     emit(null, "failed", "load_failed");
     for (const handle of Object.keys(readAll())) {

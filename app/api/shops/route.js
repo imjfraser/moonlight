@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "../../lib/db";
 import { saveShop } from "../../lib/shop-persistence.mjs";
-import { resolveParticipant } from "../../lib/participant";
+import { resolveParticipant, participantCacheScope } from "../../lib/participant";
 import { normalizeShop, normalizeHandle, SHOP_BODY_LIMIT } from "../../lib/shop-contract.mjs";
 import { readRequestJson } from "../../lib/request-json.mjs";
 
@@ -24,17 +24,18 @@ export async function GET() {
     const s = safeParse(r.shop_json);
     if (s) shops[r.handle] = s;
   }
-  return NextResponse.json({ shops }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ shops, cacheScope: participantCacheScope(id) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PUT(req) {
-  let handle, shop;
+  let handle, shop, cacheScope;
   try {
     const body = await readRequestJson(req, SHOP_BODY_LIMIT + 4096);
     if (!body || typeof body !== "object" || Array.isArray(body) ||
-        Object.keys(body).some(key => !["handle", "shop"].includes(key))) {
+        Object.keys(body).some(key => !["handle", "shop", "cacheScope"].includes(key))) {
       throw new Error("invalid_shop");
     }
+    cacheScope = body.cacheScope;
     handle = normalizeHandle(body.handle);
     shop = normalizeShop(body.shop, handle);
   } catch (error) {
@@ -44,6 +45,9 @@ export async function PUT(req) {
   const id = await resolveParticipant();
 
   const db = getDb();
+  if (cacheScope !== participantCacheScope(id)) {
+    return NextResponse.json({ error: "cache_scope_mismatch" }, { status: 409, headers: { "Cache-Control": "no-store" } });
+  }
   const result = saveShop(db, id, handle, shop);
   if (result.error) {
     return NextResponse.json({ error: result.error }, { status: 409, headers: { "Cache-Control": "no-store" } });
