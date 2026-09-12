@@ -1,3 +1,4 @@
+import { withApiMetrics, recordActivity } from "../../lib/admin-metrics.mjs";
 import { withUser } from "../../lib/auth.mjs";
 // Web adapter around a transport-independent coach contract and context builder.
 import Anthropic from "@anthropic-ai/sdk";
@@ -32,6 +33,7 @@ async function handlePOST(req) {
       return failure("cache_scope_mismatch", 409);
     }
     memory = readState(getDb(), participantId).state;
+    try { recordActivity(getDb(),participantId,input.lang); } catch {} // Nonfatal scalar telemetry only.
   } catch { return failure("memory_unavailable", 503); }
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -140,4 +142,4 @@ function slugify(s) {
     .slice(0, 40).replace(/-+$/g, "") || "shop";
 }
 
-export const POST = withUser(handlePOST);
+export const POST = withApiMetrics(getDb, withUser(handlePOST));

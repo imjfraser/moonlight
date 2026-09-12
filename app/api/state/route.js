@@ -1,3 +1,4 @@
+import { withApiMetrics } from "../../lib/admin-metrics.mjs";
 import { withUser } from "../../lib/auth.mjs";
 // Participant journey persistence. Optimistic revisions prevent stale clients
 // from silently overwriting newer state; profile fields commit atomically.
@@ -67,6 +68,6 @@ async function handlePUT(req) {
   return NextResponse.json({ ok: true, revision: result.revision }, { headers: responseHeaders });
 }
 
-export const GET = withUser(handleGET);
+export const GET = withApiMetrics(getDb, withUser(handleGET));
 
-export const PUT = withUser(handlePUT);
+export const PUT = withApiMetrics(getDb, withUser(handlePUT), { save: true });

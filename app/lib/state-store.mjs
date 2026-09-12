@@ -1,3 +1,4 @@
+import { recordJourney } from "./admin-metrics.mjs";
 import { markVaultDirty } from "./vault-sync.mjs";
 import { createHash } from "node:crypto";
 
@@ -62,7 +63,10 @@ export function saveState(db, participantId, state, baseRevision) {
     const intake = state.intake || {};
     db.prepare("UPDATE participants SET display_name = ?, public_name = ? WHERE id = ?")
       .run(intake.name || null, intake.publicName || null, participantId);
-    if (createHash("sha256").update(serialized).digest("hex") !== current.revision) markVaultDirty(db,participantId);
+    if (createHash("sha256").update(serialized).digest("hex") !== current.revision) {
+      markVaultDirty(db,participantId);
+      recordJourney(db,participantId,current.state || {},state);
+    }
     return {
       conflict: false,
       revision: createHash("sha256").update(serialized).digest("hex"),

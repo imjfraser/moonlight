@@ -1,7 +1,8 @@
+import { migrateAdmin } from "./admin-metrics.mjs";
 import { installVaultSchema, verifyVaultSchema } from "./vault-sync.mjs";
 import { migrateAccounts, verifyAccountsSchema } from "./account-migrations.mjs";
 // Version 1 adopts the original schema without rewriting participant data.
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 const columns = {
   participants: ["id", "display_name", "public_name", "lang", "email", "created_at", "last_active_at"],
   participant_state: ["participant_id", "state_json", "updated_at"],
@@ -82,5 +83,7 @@ export function migrate(db) {
       verifyVaultSchema(db);
       db.pragma("user_version = 3");
     } else { verifyVaultSchema(db); }
+    migrateAdmin(db);
+    if (version < 4) db.pragma("user_version = 4");
   }).immediate();
 }

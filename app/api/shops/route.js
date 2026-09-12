@@ -1,3 +1,4 @@
+import { withApiMetrics } from "../../lib/admin-metrics.mjs";
 import { withUser } from "../../lib/auth.mjs";
 // A participant's own shop pages. GET returns all of hers (keyed by handle);
 // PUT upserts one and records a timeline milestone the first time a handle is
@@ -64,6 +65,6 @@ function safeParse(s) {
   }
 }
 
-export const GET = withUser(handleGET);
+export const GET = withApiMetrics(getDb, withUser(handleGET));
 
-export const PUT = withUser(handlePUT);
+export const PUT = withApiMetrics(getDb, withUser(handlePUT), { save: true });

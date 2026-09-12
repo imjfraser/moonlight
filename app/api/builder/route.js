@@ -1,3 +1,5 @@
+import { getDb } from "../../lib/db";
+import { withApiMetrics } from "../../lib/admin-metrics.mjs";
 import { withUser, requireUser } from "../../lib/auth.mjs";
 import { participantCacheScope } from "../../lib/cache-scope.mjs";
 import Anthropic from "@anthropic-ai/sdk";
@@ -155,4 +157,4 @@ function responseFor(intent, ctx) {
   return null;
 }
 
-export const POST = withUser(handlePOST);
+export const POST = withApiMetrics(getDb, withUser(handlePOST));
