@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import PublishStatus from "../components/PublishStatus";
 import { loadSession, defaultSession } from "../lib/session";
 import { loadShop, addSection, removeSection, updateSection, myHandle } from "../lib/shop-store";
 import { useT, useLang } from "../lib/i18n";
@@ -174,6 +175,8 @@ export default function MePage() {
         {t("me.intro")}
       </p>
 
+      <PublishStatus key={handle} handle={handle} shop={shop} onChange={setShop} />
+
       <div className="grid-2">
         <div className="card">
           <h3 style={{ marginTop: 0 }}>{t("me.offerCardTitle")}</h3>
@@ -245,6 +248,7 @@ export default function MePage() {
           <div className="card" style={{ marginTop: 10 }}>
             <span className="pill">{t("me.builder.proposesPill", { type: proposed.type })}</span>
             <h4 style={{ marginTop: 8 }}>{proposed.title}</h4>
+            <p className="muted">{lang === "es" ? "Borrador generado: confirma precios, testimonios y promesas antes de publicarlo." : "Generated draft: confirm prices, testimonials, and promises before publishing."}</p>
             <SectionPreview section={proposed} />
             {proposed.type === "gallery" && (
               <PhotoManager section={proposed} onPhotosChange={(photos) => updateProposedData({ photos })} compact />

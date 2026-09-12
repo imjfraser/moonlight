@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { loadShop } from "../../lib/shop-store";
 import { useT } from "../../lib/i18n";
 
 export default function ShopPage() {
@@ -12,39 +11,43 @@ export default function ShopPage() {
   const handle = String(params?.handle || "").toLowerCase();
   const [ready, setReady] = useState(false);
   const [shop, setShop] = useState(null);
+  const [loadError, setLoadError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    setReady(false);
+    setLoadError(false);
+    setShop(null);
     (async () => {
       try {
-        const res = await fetch(`/api/shops/${encodeURIComponent(handle)}`);
-        if (res.ok) {
-          const { shop } = await res.json();
-          if (alive && shop) {
-            setShop(shop);
-            setReady(true);
-            return;
-          }
-        }
-      } catch {}
-      // Fallback to a local copy (the creator's own browser) if the server has none.
-      if (alive) {
-        setShop(loadShop(handle));
-        setReady(true);
-      }
+        const res = await fetch(`/api/shops/${encodeURIComponent(handle)}`, { cache: "no-store" });
+        if (res.status === 404) return;
+        if (!res.ok) throw new Error("unavailable");
+        const data = await res.json();
+        if (!data.shop) throw new Error("unavailable");
+        if (alive) setShop(data.shop);
+      } catch { if (alive) setLoadError(true); }
+      finally { if (alive) setReady(true); }
     })();
-    return () => {
-      alive = false;
-    };
-  }, [handle]);
+    return () => { alive = false; };
+  }, [handle, attempt]);
 
   const waLink = useMemo(() => {
-    if (!shop) return "#";
-    const text = `Hi! I saw your ${shop.offer?.name || "page"}. Could you tell me more?`;
-    return `https://wa.me/?text=${encodeURIComponent(text)}`;
-  }, [shop]);
+    const number = shop?.contact?.whatsapp;
+    if (!number || !/^[1-9][0-9]{6,14}$/.test(number)) return null;
+    const text = t.lang === "es"
+      ? `¡Hola! Vi tu página de ${shop.offer?.name || "negocio"}. ¿Me cuentas más?`
+      : `Hi! I saw your ${shop.offer?.name || "page"}. Could you tell me more?`;
+    return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+  }, [shop, t.lang]);
 
   if (!ready) return <div className="card">{t("common.loading")}</div>;
+
+  if (loadError) return <div className="card" role="alert">
+    <p>{t.lang === "es" ? "No se pudo cargar la página publicada." : "The published page could not be loaded."}</p>
+    <button type="button" onClick={() => setAttempt(n => n + 1)}>{t.lang === "es" ? "Reintentar" : "Retry"}</button>
+  </div>;
 
   if (!shop) {
     return (
@@ -76,7 +79,7 @@ export default function ShopPage() {
           <span style={{ fontSize: 12, letterSpacing: 1.5, color: "#7a5826" }}>{offer.tagline || ""}</span>
           <h2>{offer.name || displayName}</h2>
           <p>{offer.description}</p>
-          <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">{t("shop.messageWA")}</a>
+          {waLink ? <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">{t("shop.messageWA")}</a> : <p>{t.lang === "es" ? "El contacto por WhatsApp todavía no está disponible." : "WhatsApp contact is not available yet."}</p>}
         </div>
 
         <div className="pv-section">
@@ -159,7 +162,7 @@ export default function ShopPage() {
           <div key={s.id} className="pv-section">
             <h3>{s.title}</h3>
             {s.data.url ? (
-              <a className="pv-cta" href={s.data.url} target="_blank" rel="noreferrer">{s.data.label || "Book a time"}</a>
+              <a className="pv-cta" href={s.data.url} target="_blank" rel="noreferrer">{s.data.label || (t.lang === "es" ? "Reservar una cita" : "Book a time")}</a>
             ) : (
               <p style={{ color: "#999" }}>{t("shop.bookingComing")}</p>
             )}
@@ -192,7 +195,7 @@ export default function ShopPage() {
         <div className="pv-section">
           <h3>{t("shop.howToOrder")}</h3>
           <p>{t("shop.howToOrder.body")}</p>
-          <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">{t("shop.messageMe")}</a>
+          {waLink ? <a className="pv-cta" href={waLink} target="_blank" rel="noreferrer">{t("shop.messageMe")}</a> : <p>{t.lang === "es" ? "El contacto por WhatsApp todavía no está disponible." : "WhatsApp contact is not available yet."}</p>}
         </div>
 
         <div className="pv-section" style={{ background: "#fff7ea" }}>
