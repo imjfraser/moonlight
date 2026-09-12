@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useT } from "./lib/i18n";
+import { PROGRAM_STAGES } from "./lib/program-progress.mjs";
 
 export default function Home() {
   const t = useT();
@@ -14,8 +15,20 @@ export default function Home() {
       </p>
 
       <div className="row">
-        <Link href="/start" className="btn">{t("landing.ctaStart")}</Link>
+        <Link href="/login" className="btn">{t("landing.ctaStart")}</Link>
       </div>
+
+      <section className="card" aria-labelledby="program-outline">
+        <h2 id="program-outline" style={{ marginTop: 0 }}>{t("landing.programTitle")}</h2>
+        <p>{t("landing.programBody")}</p>
+        <details>
+          <summary>{t("landing.programStages")}</summary>
+          <ol className="clean">
+            {PROGRAM_STAGES.map(stage => <li key={stage.id}>{t.lang === "es" ? stage.es : stage.en}</li>)}
+          </ol>
+        </details>
+        <p className="muted">{t("landing.programMaterials")}</p>
+      </section>
 
       <div className="grid-2" style={{ marginTop: 22 }}>
         <div className="card">
@@ -41,7 +54,7 @@ export default function Home() {
         <h3 style={{ marginTop: 8 }}>{t("landing.firstStep.title")}</h3>
         <p className="muted">{t("landing.firstStep.body")}</p>
         <div className="row">
-          <Link href="/start" className="btn">{t("landing.firstStep.ctaStart")}</Link>
+          <Link href="/login" className="btn">{t("landing.firstStep.ctaStart")}</Link>
           <Link href="/preview" className="btn ghost">{t("landing.firstStep.ctaSample")}</Link>
         </div>
       </div>

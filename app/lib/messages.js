@@ -26,16 +26,16 @@ export const messages = {
   "footer.copyright": { en: "© Luz de Luna", es: "© Luz de Luna" },
 
   // === Landing page (/) ===
-  "landing.pill": { en: "A coach in your pocket", es: "Un coach en tu bolsillo" },
+  "landing.pill": { en: "Your mini-incubator with Sol", es: "Tu miniincubadora con Sol" },
   "landing.heroTitle": {
-    en: "Turn what you already know into real income — with a coach who's seen it work.",
-    es: "Convierte lo que ya sabes en ingresos reales — con un coach que ha visto que funciona.",
+    en: "Build your business, one practical step at a time.",
+    es: "Construye tu negocio, un paso práctico a la vez.",
   },
   "landing.heroBody": {
-    en: "Luz de Luna is a business coach in your pocket. You bring your skill, your time, and what you already know. Sol helps you turn it into a real business that pays — using the new tools that let one person do what used to take a team.",
-    es: "Luz de Luna es un coach de negocios en tu bolsillo. Tú traes tu talento, tu tiempo y lo que ya sabes. Sol te ayuda a convertirlo en un negocio real que paga — usando las nuevas herramientas que permiten que una sola persona haga lo que antes requería un equipo.",
+    en: "Bring your idea, a skill, or simply a wish to start. Your mini-incubator with Sol helps you shape an offer, prepare your first customer message, and keep moving with a clear next step.",
+    es: "Trae tu idea, una habilidad o simplemente las ganas de empezar. Tu miniincubadora con Sol te ayuda a definir una oferta, preparar tu primer mensaje a un cliente y avanzar con un siguiente paso claro.",
   },
-  "landing.ctaStart":  { en: "Start a session →", es: "Empieza una sesión →" },
+  "landing.ctaStart": { en: "Join the program →", es: "Entrar al programa →" },
   "landing.card1.title": { en: "How it works", es: "Cómo funciona" },
   "landing.card1.body": {
     en: "Sol — your coach — asks you a few simple questions, listens, and helps you choose your first move this week. You walk away with one specific customer to message, a price, and a page you can share.",
@@ -57,13 +57,18 @@ export const messages = {
     es: "El objetivo no es un pasatiempo que pague el mercado. Es un ingreso real — del que paga el arriendo y más. Sol planifica con esa meta desde la primera conversación.",
   },
   "landing.firstStep.pill": { en: "First step", es: "Primer paso" },
-  "landing.firstStep.title": { en: "Spend 10 minutes with Sol", es: "Pasa 10 minutos con Sol" },
+  "landing.firstStep.title": { en: "Take your first step with Sol", es: "Da tu primer paso con Sol" },
   "landing.firstStep.body": {
-    en: "By the end of one short conversation you'll have a specific person to message today, an offer with a price, and a page to share. No jargon. No business plan. Just a first move.",
-    es: "Al final de una sola conversación corta tendrás una persona específica a la que escribir hoy, una oferta con precio y una página para compartir. Sin jerga. Sin plan de negocios. Solo un primer paso.",
+    en: "Start with what you already know. Sol helps you prepare your next move, and you can return to your program as you learn from real customers.",
+    es: "Empieza con lo que ya sabes. Sol te ayuda a preparar tu siguiente paso y puedes volver a tu programa mientras aprendes de clientes reales.",
   },
-  "landing.firstStep.ctaStart": { en: "Start →", es: "Empezar →" },
+  "landing.firstStep.ctaStart": { en: "Start or sign in →", es: "Empezar o entrar →" },
   "landing.firstStep.ctaSample": { en: "See a sample page", es: "Ver una página de ejemplo" },
+
+  "landing.programTitle": { en: "A clear path, at your pace", es: "Un camino claro, a tu ritmo" },
+  "landing.programBody": { en: "Move through seven coaching stages with the same Sol. Revisit a step whenever you need to; your progress is a guide, not a deadline.", es: "Avanza por siete etapas con la misma Sol. Vuelve a cualquier paso cuando lo necesites; tu progreso es una guía, no una fecha límite." },
+  "landing.programStages": { en: "See the seven stages", es: "Ver las siete etapas" },
+  "landing.programMaterials": { en: "Work toward an offer with a price, a first message, a 30-day plan and a shareable page. Preparing these materials is a starting point—not a guarantee of sales.", es: "Prepara una oferta con precio, un primer mensaje, un plan de 30 días y una página para compartir. Estos materiales son un punto de partida, no una garantía de ventas." },
 
   // === Intake (/start) ===
   "intake.progress": { en: "Guided intake — step {step} of {total}", es: "Preguntas guiadas — paso {step} de {total}" },
