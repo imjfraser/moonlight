@@ -8,6 +8,15 @@ import { useLang, setLang } from "../lib/i18n";
 export default function LanguageToggle() {
   const lang = useLang();
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+  function changeLanguage(next) {
+    setLang(next);
+    document.cookie = `moonlight.lang=${next}; Path=/; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+    if (/^\/shop\/[^/]+\/?$/.test(window.location.pathname)) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("lang", next);
+      window.location.assign(url.toString());
+    }
+  }
   return (
     <div
       role="group"
@@ -24,7 +33,7 @@ export default function LanguageToggle() {
     >
       <button
         type="button"
-        onClick={() => setLang("en")}
+        onClick={() => changeLanguage("en")}
         aria-pressed={lang === "en"}
         style={{
           padding: "4px 10px",
@@ -42,7 +51,7 @@ export default function LanguageToggle() {
       </button>
       <button
         type="button"
-        onClick={() => setLang("es")}
+        onClick={() => changeLanguage("es")}
         aria-pressed={lang === "es"}
         style={{
           padding: "4px 10px",
