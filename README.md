@@ -1,136 +1,78 @@
-# Moonlight — internal prototype
+# Moonlight / Luz de Luna
 
-> Moonlight helps people who are vulnerable to sexual, economic, and trafficking
-> exploitation build safer digital income pathways with an AI business coach
-> and simple online tools.
+Entrepreneurship coaching Next.js application for a guided business-building journey.
+This repository is a prototype, not a declaration of production readiness.
 
-This is an **internal exploratory MVP**. It is not for live participant use.
+## Current architecture
 
-## What this prototype demonstrates
+- Next.js 15 App Router, React 19, JSX and global CSS.
+- SQLite via `better-sqlite3`, WAL mode and versioned migrations; participant,
+  journey-state, shop and milestone tables. Not a database-free mock.
+- Participant identity uses a one-year first-party cookie with Secure, HttpOnly
+  and SameSite=Lax attributes, not a recoverable account login. Clearing the
+  cookie can lose access to previous work.
+- Journey saves use server revisions and atomic writes. The client serializes
+  saves and retains failed drafts in a per-tab journal; conflicts require an
+  explicit user decision rather than silently replacing server data.
+- Owner shop writes validate supported shapes. Public shop responses use an
+  explicit projection and omit a real name unless sharing is enabled.
+- Builder requests and outputs are validated: 8 MiB request-body limit, at most
+  20 messages, 4,000 characters per message and 32,000 history characters.
+  One-process token buckets allow 60 global and 10 per-cookie requests at full
+  capacity, refilling at those rates per minute; anonymous and bounded overflow
+  buckets also apply. These are not distributed limits.
+- Shared storefront section rendering keeps owner/public section layouts aligned.
+  Gallery uploads accept PNG/JPEG/WebP/GIF up to 2 MiB per file; the server
+  applies the same inline-image cap and an 8 MiB serialized shop limit.
+- Public shops render server-side using the public projection. Missing shops
+  return 404; metadata includes title/description, canonical and EN/ES alternate
+  URLs plus Open Graph fields. This is not a claim of a custom social-preview image.
+- Storefront language is selected by a valid `?lang=en` or `?lang=es`, then the
+  `moonlight.lang` cookie, defaulting to English. The language toggle persists
+  the preference and reloads storefronts with the explicit language query.
+  Client shell and document language synchronize after hydration.
+- `coach-prompt.js` is unchanged; shared persistence supports the entire
+  participant journey.
 
-A guided journey from a vague intent -> a chosen business idea -> a structured
-**architect -> operator brief** -> a generated **business kit** -> a simple
-**generated website preview** with privacy controls. It also includes an
-internal-facing funding/partner page.
+## Main routes
 
-Screens:
-
-| Path | Purpose |
+| Route | Purpose |
 | --- | --- |
-| `/` | Landing / concept page |
-| `/start` | Guided intake (4 friendly steps) |
-| `/architect` | Architect agent: suggests 2-4 micro-business paths |
-| `/brief` | Operator brief: the architect->builder handoff, made visible |
-| `/kit` | Generated business kit: names, copy, pricing, posts, actions |
-| `/preview` | Simple generated business website with public/private toggle |
-| `/funding` | Internal-facing funding/partner page |
+| `/` | Introduction |
+| `/start` | Intake |
+| `/architect` | Business-idea journey |
+| `/brief` | Structured handoff |
+| `/kit` | Generated business kit |
+| `/preview` | Illustrative kit website/privacy preview; saves journey state, not a public shop |
+| `/me` | Owner shop editing and live public-shop publication |
+| `/shop/[handle]` | Public server-rendered storefront |
+| `/proposal` | Production proxy alias for `public/proposal.html`; locally use `/proposal.html` |
 
-## Stack
+## Development
 
-- **Next.js 15** (App Router, JSX, no TypeScript to keep the prototype small)
-- **React 19**
-- A single global CSS file - no Tailwind dependency
-- Client-side `sessionStorage` for the journey state - no database
-- All "agents" are deterministic mocks in `app/lib/generate.js`
-
-## Run locally
-
-```bash
-cd moonlight
-npm install
-npm run dev       # http://localhost:3002
+```sh
+npm ci
+npm run dev
 ```
 
-For a production build:
+The development app uses port 3002. `ANTHROPIC_API_KEY` is server-side optional
+configuration for provider-backed generation; keep credentials out of source.
+`NEXT_PUBLIC_SITE_URL` optionally supplies the storefront metadata origin: only
+an HTTPS origin with no credentials, path, query, or fragment is accepted;
+otherwise metadata uses `https://luzdeluna.app`.
+`MOONLIGHT_DATA_DIR` overrides the default `data/` location. Use a disposable
+local data directory when developing persistence changes.
 
-```bash
-npm run build
-npm start         # serves on port 3002
-```
+## Verification
 
-## Live deployment
+The `npm test` command runs focused Node built-in tests without new
+packages: disposable SQLite persistence, public serialization, mocked browser
+save failures/conflicts, builder contracts and limiter behavior. It does not
+call a provider or the running application. Production build: `npm run build`.
 
-The live prototype runs on Bucket 3 (18.219.171.81):
+## Operations
 
-- App: `/home/ubuntu/moonlight/`
-- systemd unit: `/etc/systemd/system/moonlight.service` (enabled, restart=always)
-- Logs: `/home/ubuntu/logs/moonlight.log`
-- Port: 3002 (localhost only)
-- Caddy block: `moonlight.bucket3.ai -> localhost:3002`
-
-The instructions originally asked for a Dockerized Coolify deployment.
-**Bucket 3 today does not run Docker or Coolify.** Existing internal sites
-(cop-bucket3, myopreserve) are deployed as plain Next.js apps running under
-`systemd`, reverse-proxied by **Caddy** which terminates TLS via the
-`bucket3.ai` zone.
-
-To match that pattern, Moonlight ships the same way. A `Dockerfile` is
-included for future Coolify migration but is not used by the live deployment.
-
-### Bring-up steps (already run)
-
-```bash
-# Files synced into /home/ubuntu/moonlight/
-cd ~/moonlight && npm install && npm run build
-sudo cp ops/moonlight.service /etc/systemd/system/moonlight.service
-sudo systemctl daemon-reload && sudo systemctl enable --now moonlight
-# Caddy block appended; sudo systemctl reload caddy
-```
-
-## File map
-
-```
-moonlight/
-|- app/
-|  |- globals.css
-|  |- layout.jsx
-|  |- page.jsx                # /
-|  |- start/page.jsx          # /start
-|  |- architect/page.jsx      # /architect
-|  |- brief/page.jsx          # /brief
-|  |- kit/page.jsx            # /kit
-|  |- preview/page.jsx        # /preview
-|  |- funding/page.jsx        # /funding
-|  `- lib/
-|     |- session.js           # client-side journey state
-|     `- generate.js          # deterministic mock architect/builder
-|- ops/
-|  `- moonlight.service       # systemd unit
-|- public/
-|- start.sh
-|- Dockerfile                 # for future Coolify
-|- next.config.mjs
-|- package.json
-`- README.md
-```
-
-## What is mocked vs. real
-
-| Piece | Status |
-| --- | --- |
-| UI / journey / screens | Real |
-| Architect "agent" | Mocked - deterministic logic in `lib/generate.js` |
-| Builder "agent" | Mocked - deterministic logic in `lib/generate.js` |
-| Persistence | Client-side `sessionStorage` only - clears when the tab closes |
-| Auth | None - relies on internal-only DNS/network |
-| Real AI calls | None in this prototype |
-
-## Known gaps / risks
-
-- This is NOT ready for real vulnerable users. No safeguarding review yet.
-- No real persistence. Refresh outside a session clears state.
-- No real agent - the "ideas" pool is a small handcrafted list.
-- No DNS record yet for `moonlight.bucket3.ai` (see DEPLOYMENT.md).
-- No localisation / i18n.
-- No accessibility audit yet.
-
-## Recommended next build steps
-
-1. Add DNS record `moonlight.bucket3.ai -> 18.219.171.81`.
-2. Wire the architect to a real conversation agent and the builder to a real
-   generator that uses the partner methodology content.
-3. Move journey state to a server-side store; allow resume.
-4. Trauma-informed UX pass with a safeguarding partner.
-5. Localisation (Spanish first; Rebel LATAM context).
-6. WhatsApp-first delivery for low-bandwidth users.
-7. Partner panel for real-time human handoff.
+See `DEPLOYMENT.md` for current deployment and `ops/BACKUP.md` for the existing
+online-consistent backup schedule and disposable restore verification. Native
+SQLite remains a single-host persistence dependency. Account recovery,
+distributed quotas and a full accessibility/localization audit are not claimed.

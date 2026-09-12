@@ -1,85 +1,58 @@
-# Moonlight deployment notes
+# Moonlight deployment
 
-## Live URLs
+## Current deployment shape
 
-- **Internal (works today):** `http://18.219.171.81:3002` *(direct port, internal only)*
-- **Via Caddy with Host header:**
-  `curl -H 'Host: moonlight.bucket3.ai' http://18.219.171.81/`
-  (Caddy returns a 308 redirect to https://moonlight.bucket3.ai/ - HTTPS won't work
-  until DNS is in place.)
-- **Intended:** `https://moonlight.bucket3.ai` *(blocked on DNS - see below)*
+- Host alias: `bucket3`; source: `/home/ubuntu/moonlight`.
+- Public application: `https://luzdeluna.app`.
+- Production `/proposal` is a proxy alias for `public/proposal.html`, not an
+  App Router page; local access is `/proposal.html`.
+- Application unit: `moonlight.service`; launcher: `start.sh`; port: 3002.
+- Application log: `/home/ubuntu/logs/moonlight.log`.
+- SQLite defaults to `data/moonlight.sqlite`; `MOONLIGHT_DATA_DIR` may override it.
+- Launcher loads gitignored `.env.local` and invokes `npm start`. Keep provider
+  credentials server-side; do not paste environment contents into diagnostics.
+- Next configuration enables standalone output, but the current launcher uses
+  `npm start`, not the standalone server entry point. Preserve this distinction
+  when changing packaging. `better-sqlite3` is a native external dependency.
 
-## What is deployed
+The old DNS-blocked/no-persistence/mock-only deployment notes are obsolete.
+Public storefronts now render on the server, with per-shop metadata derived
+only from public fields. `?lang=en|es` takes precedence over the language cookie;
+English is the fallback. Configure `NEXT_PUBLIC_SITE_URL` only as an HTTPS origin
+(no credentials/path/query/fragment) when intentionally changing canonical hosts;
+the default is `https://luzdeluna.app`. Metadata contains canonical URLs,
+EN/ES alternates and Open Graph text. Verify actual shared-link previews separately.
 
-| Item | Path |
-| --- | --- |
-| App source | `/home/ubuntu/moonlight/` |
-| Build output | `/home/ubuntu/moonlight/.next/` |
-| systemd unit | `/etc/systemd/system/moonlight.service` |
-| Logs | `/home/ubuntu/logs/moonlight.log` |
-| Port (localhost) | 3002 |
-| Caddy block | appended to `/etc/caddy/Caddyfile` (backup at `Caddyfile.bak-20260517-moonlight`) |
+## Scoped release procedure
 
-## Verified
+Use this only for an authorized deployment. Check the source diff and preserve
+unrelated work. Verify a current backup before schema-affecting changes.
 
-- `sudo systemctl is-active moonlight` -> `active`
-- `sudo systemctl is-enabled moonlight` -> `enabled`
-- All 7 routes return HTTP 200 from `http://127.0.0.1:3002`
-- Caddy reload accepted the new config (`caddy validate` passed)
-- The app's memory footprint is ~60 MB RSS
-
-## Remaining: DNS
-
-`moonlight.bucket3.ai` has no DNS record yet. The host's public IP is
-**18.219.171.81**.
-
-Add an `A` record:
-
-```
-Name:  moonlight.bucket3.ai
-Type:  A
-Value: 18.219.171.81
-TTL:   300
+```sh
+npm ci
+npm test
+npm run build
+sudo systemctl restart moonlight.service
+sudo systemctl is-active moonlight.service
 ```
 
-After the record is created and resolves, Caddy will provision a Let's Encrypt
-certificate automatically on first HTTPS hit. No further server-side change
-needed.
+Do not restart unrelated applications, tunnels, or reverse proxies for a
+normal Moonlight application release. Check public page responses and the
+relevant user journey after deployment; a successful build alone is not a
+functional smoke test. The root page is the basic HTTP 200 health check.
+A nonexistent shop should return 404; do not use `/shop/test` as a successful
+storefront health check without a deliberately provisioned synthetic fixture.
+Read-only checks must not call state/owner endpoints
+that create or update participant identity as a side effect.
 
-This is the only step Claude could not complete autonomously - AWS CLI / Route
-53 access is not available on Bucket 3 or DeerLake from inside this prototype's
-toolchain.
+## Persistence and recovery
 
-## Restart / redeploy commands
+Initialization adopts the original schema as version 1 in a transaction and
+rejects databases with a newer unsupported version. Shop writes and their
+first-creation milestone are atomic. Journey saves compare server revisions.
 
-```bash
-# Restart the service
-sudo systemctl restart moonlight
-
-# Tail logs
-tail -f /home/ubuntu/logs/moonlight.log
-
-# Rebuild after source changes
-cd /home/ubuntu/moonlight && npm install && npm run build && sudo systemctl restart moonlight
-
-# Validate Caddyfile
-sudo caddy validate --config /etc/caddy/Caddyfile
-
-# Reload Caddy
-sudo systemctl reload caddy
-```
-
-## Reverting
-
-To remove Moonlight cleanly:
-
-```bash
-sudo systemctl disable --now moonlight
-sudo rm /etc/systemd/system/moonlight.service
-sudo cp /etc/caddy/Caddyfile.bak-20260517-moonlight /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-# Optionally: rm -rf /home/ubuntu/moonlight
-```
-
-## Proposal page — added 2026-07-20
-Static partner/funder proposal at public/proposal.html. Live at https://luzdeluna.app/proposal via a Caddy rewrite [rewrite /proposal /proposal.html] in /etc/caddy/Caddyfile, and also directly at /proposal.html. NOTE: because next.config uses output standalone and start.sh runs next start, files added to public/ are only served after a moonlight.service restart. Caddyfile backup before this change: /etc/caddy/Caddyfile.bak-20260720-proposal.
+Scheduled backup uses SQLite's online backup API and retains 14 compressed
+snapshots. See `ops/BACKUP.md` for paths, permissions, the repeatable disposable
+restore verifier and controlled recovery procedure. Never copy the main live
+SQLite file alone as an assumed complete WAL-mode backup; never combine a
+restored database with unrelated old WAL/SHM sidecars.
