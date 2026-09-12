@@ -1,6 +1,8 @@
 # Moonlight / Luz de Luna
 
-Entrepreneurship coaching Next.js application for a guided business-building journey.
+Bilingual entrepreneurship mini-incubator: a guided business-building journey with Sol,
+followed by continuing coaching. Registration is open to aspiring entrepreneurs,
+while its Latin America-rooted EN/ES experience and Sol’s warm voice remain central.
 This repository is a prototype, not a declaration of production readiness.
 Product direction: paid entrepreneurship coaching, not donor-funded. Payment
 processing is not implemented.
@@ -75,7 +77,11 @@ already-saved coach artifacts. This is not account recovery.
 | Route | Purpose |
 | --- | --- |
 | `/` | Introduction |
-| `/start` | Intake |
+| `/login` | Participant registration and email sign-in |
+| `/admin/login` | Separate administrator email sign-in |
+| `/account` | Own-account private vault download |
+| `/admin` | Aggregate metrics and metadata-only account support |
+| `/start` | Authenticated intake |
 | `/architect` | Business-idea journey |
 | `/brief` | Structured handoff |
 | `/kit` | Generated business kit |
@@ -133,3 +139,64 @@ SQLite remains a single-host persistence dependency. Distributed quotas and a fu
   revokes their old sessions. This is not exposed through a web endpoint.
 - Verification uses disposable SQLite and mocked email/provider calls. A live
   recovery email to a real recipient has not been tested in this deployment.
+
+
+## Program and milestones
+
+The existing curriculum has seven stages: greeting, skill exploration, first-customer
+identification, offer proposal, action drafted, marketing plan, and done. Seven
+small EN/ES-accessible squares show observed stages, the outlined current stage,
+and empty upcoming stages. Skipped stages are not inferred as completed. The last
+square fills only when the journey has reached done and the offer, message, plan,
+and confirmed published shop are ready. This is a preparation milestone, not a
+certificate, completed sale, sent customer message, or income guarantee. Sol remains
+available afterwards; the coaching prompt and voice are unchanged.
+
+## Private account vault
+
+SQLite is still authoritative. A durable SQLite queue projects each registered
+participant's existing data into a private local Git-versioned Markdown vault.
+The app worker polls every 30 seconds; no extra service or Git remote is provisioned.
+Profile, business artifacts, timeline, and saved conversation are private owner data,
+not an admin support surface. `/account` offers an authenticated owner-only ZIP
+export of current committed allowlisted files, not Git history. Authorization is
+rechecked after asynchronous export work. See `ops/PRIVATE-VAULT.md` for queue,
+retry, permissions, export limits, and recovery details. Local Git is not a replacement
+for SQLite backups or an off-host backup.
+
+## Admin metrics and access boundaries
+
+Every admin page/API checks a separate active admin session and role server-side.
+User search/list and enable/disable support use an explicit metadata allowlist.
+Admin pages, APIs, support, and exports must never expose conversation/message
+content, private state, vault files, Git history/diffs, or participant ZIPs.
+
+Metric definitions below describe the implemented counters, not inferred outcomes.
+There is no retrospective transcript analysis or historical telemetry backfill.
+
+| Metric | Definition / limitation |
+| --- | --- |
+| Signups | Registered user-role accounts (not guest records or admin-only accounts). |
+| DAU / WAU / MAU | Distinct registered participants with recorded activity today / trailing 7 / trailing 30 UTC calendar days, including today. Activity is successful journey writes or authenticated coach requests, not passive page views. |
+| Sessions started / completed | Recorded coaching journeys: first nonempty saved conversation starts one; first saved `done` completes it. Reset to an empty conversation ends the previous journey. These are not browser visits. |
+| Arc completion rate | Completed journeys divided by started journeys; null without a denominator. |
+| Average session length | Mean elapsed seconds from first recorded turn to first saved `done` among completed journeys, not active reading/typing time. Null when none are completed. |
+| EN / ES split | Journey counts by recorded language, not population or page-view percentages. |
+| Shops created / published | Current owned shop records for registered participants. Both coincide because initial creation and publication share one atomic save; not separate funnel events. |
+| First-customer message drafted | Participants with a recorded nonempty saved message milestone, counted once; not evidence that a message was sent or a customer paid. |
+| Save failures | Failed instrumented state/shop writes, including HTTP 4xx/5xx and thrown errors; not offline browser failures never received by the server. |
+| Build / API error rate | Recorded failures divided by attempts, null without attempts. API coverage is state, shops, coach, and builder, including 4xx/5xx; builds are those run through the instrumented build script, not historical releases. |
+| Conversion rate / MRR / churn | Null: payments are not implemented. Not measured zero revenue or churn. |
+| Acute-distress disclosures handled | Null/unavailable: no reliable structured handled-disclosure signal exists. No classifier or proxy from notices/transcripts is invented. Count-only instrumentation requires a separate decision; `coach-prompt.js` remains untouched. |
+
+Counters start when instrumentation is installed; account/shop totals use current
+records. No administrator is seeded automatically: use the explicit provisioning
+CLI above only for an authorized administrator.
+
+## Remaining decisions and verification gaps
+
+- Dedicated Moonlight email branding/domain, if desired; the authorized verified
+  Pegasus sender is currently used. No real-recipient email delivery test is claimed.
+- A reliable count-only safety event contract before that metric can be populated.
+- Payments, pricing/enrollment entitlements, and Telegram identity linking/client
+  are future work. The web account is the canonical identity for that future surface.

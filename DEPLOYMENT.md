@@ -71,3 +71,37 @@ To provision an administrator deliberately, run
 `node scripts/provision-admin.mjs --email <authorized-email>` on the host.
 No administrator has been provisioned automatically. No payment processing exists;
 `enrollment_tier` is a future enrollment placeholder, not a billing entitlement.
+
+
+## Vault and administration operations
+
+The private-vault migration adds a durable synchronization queue. SQLite remains
+canonical; account/journey/shop changes enqueue projections transactionally. The
+in-process worker resumes queued work after restart, polls every 30 seconds,
+processes up to 10 accounts per batch, leases work for three minutes, and retries
+failures after 60 seconds. Production build initialization does not start the worker.
+
+The default private root is `/home/ubuntu/moonlight-private-vaults`;
+`MOONLIGHT_VAULT_DIR` can override it. Keep it outside the app/public tree and shared
+command-center. Directories are 0700, files 0600; Git repositories are local only.
+See `ops/PRIVATE-VAULT.md` for metadata-only queue inspection and recovery. Do not
+serve this directory or inspect private files as routine admin diagnostics.
+Owner exports via `/account` require active participant authorization and exclude
+`.git`; the ZIP buffer cap is 32 MiB. Disabled accounts retain data but cannot export.
+SQLite backups do not preserve historic vault Git commits; local Git alone is not
+an off-host backup. Reprojection rebuilds current files, not lost Git history.
+
+`/admin` and `/admin/users/[id]` require separate active administrator sessions.
+No admin account is automatically seeded. The CLI provisioning command above is
+the only initial role-assignment mechanism; public signup cannot grant admin rights.
+Support is metadata-only: no transcript/message content, private vault browser,
+impersonation, raw state, or owner archive access. Metric definitions and coverage
+are listed in README. Telemetry starts at installation, not retroactively.
+Build metrics cover the instrumented build script; API errors include 4xx as well
+as 5xx. Missing denominators and unavailable payment/safety metrics are null.
+
+Email configuration reuses the explicitly authorized existing Resend service and
+verified Pegasus sender; no new external service was provisioned. A real-recipient
+sign-in/recovery email has not been tested. Dedicated Moonlight sender branding
+and a reliable count-only safety event contract remain decisions, not deployment
+claims. Do not change `coach-prompt.js` to populate an unavailable dashboard metric.
