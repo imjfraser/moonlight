@@ -15,7 +15,7 @@ export default function AccountBar({ email }) {
   }
   return <div className="card tight" style={{marginBottom:12}}>
     <div className="row" style={{justifyContent:"space-between",overflowWrap:"anywhere"}}>
-      <span>{email}</span><button type="button" className="btn ghost small" disabled={busy} onClick={logout}>{es?"Cerrar sesión":"Sign out"}</button>
+      <a href="/account" aria-label={es?"Tu cuenta y memoria privada":"Your account and private memory"}>{email}</a><button type="button" className="btn ghost small" disabled={busy} onClick={logout}>{es?"Cerrar sesión":"Sign out"}</button>
     </div>
     {error&&<p role="alert">{es?"No se pudo cerrar la sesión. Inténtalo de nuevo.":"Could not sign out. Try again."}</p>}
   </div>;

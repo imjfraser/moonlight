@@ -1,3 +1,4 @@
+import { markVaultDirty } from "./vault-sync.mjs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 export const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -49,11 +50,13 @@ export function consumeMagicLink(db, token, audience = "user", now = Date.now())
       db.prepare("INSERT INTO participants(id,email) VALUES(?,?)").run(id,link.email);
       db.prepare("INSERT INTO accounts(participant_id,email,role,email_verified_at) VALUES(?,?,'user',?)")
         .run(id,link.email,new Date(now).toISOString());
+      markVaultDirty(db,id);
       account = db.prepare(SELECT_ACCOUNT+" WHERE a.participant_id=?").get(id);
     }
     if (!account.email_verified_at) {
       db.prepare("UPDATE accounts SET email_verified_at=?,updated_at=? WHERE participant_id=?")
         .run(new Date(now).toISOString(),new Date(now).toISOString(),account.participant_id);
+      markVaultDirty(db,account.participant_id);
     }
     const sessionToken = randomBytes(32).toString("base64url");
     db.prepare("INSERT INTO auth_sessions(token_hash,participant_id,audience,created_at,expires_at) VALUES(?,?,?,?,?)")
@@ -74,10 +77,11 @@ export function revokeSession(db, token, audience = "user", now = Date.now()) {
 export function setAccountStatus(db, id, status, now = Date.now()) {
   if (!["active","disabled"].includes(status)) throw new Error("invalid_status");
   return db.transaction(() => {
-    const account = db.prepare("SELECT email FROM accounts WHERE participant_id=? AND role='user'").get(id);
+    const account = db.prepare("SELECT email,status FROM accounts WHERE participant_id=? AND role='user'").get(id);
     if (!account) return null;
     db.prepare("UPDATE accounts SET status=?,updated_at=? WHERE participant_id=? AND role='user'")
       .run(status,new Date(now).toISOString(),id);
+    if (account.status !== status) markVaultDirty(db,id);
     if (status === "disabled") {
       db.prepare("UPDATE auth_sessions SET revoked_at=? WHERE participant_id=? AND revoked_at IS NULL").run(now,id);
       db.prepare("UPDATE auth_magic_links SET consumed_at=? WHERE email=? AND consumed_at IS NULL").run(now,account.email);

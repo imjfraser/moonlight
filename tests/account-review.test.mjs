@@ -1,13 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { migrateAccounts } from "../app/lib/account-migrations.mjs";
+import { migrate } from "../app/lib/migrations.mjs";
 import { issueMagicLink, consumeMagicLink, findSessionAccount, provisionAdmin, setAccountStatus, tokenHash, MAGIC_LINK_TTL_MS } from "../app/lib/account-store.mjs";
 const Database=createRequire(import.meta.url)("better-sqlite3");
 function fixture(t){
  const db=new Database(":memory:");db.pragma("foreign_keys=ON");
- db.exec("CREATE TABLE participants(id TEXT PRIMARY KEY,email TEXT,display_name TEXT)");
- migrateAccounts(db);t.after(()=>db.close());return db;
+ migrate(db);t.after(()=>db.close());return db;
 }
 test("independent: wrong audience cannot consume a valid link; tokens are stored hashed",t=>{
  const db=fixture(t),now=1000000,token=issueMagicLink(db,"person@example.com","user",now);

@@ -1,6 +1,7 @@
+import { installVaultSchema, verifyVaultSchema } from "./vault-sync.mjs";
 import { migrateAccounts, verifyAccountsSchema } from "./account-migrations.mjs";
 // Version 1 adopts the original schema without rewriting participant data.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 const columns = {
   participants: ["id", "display_name", "public_name", "lang", "email", "created_at", "last_active_at"],
   participant_state: ["participant_id", "state_json", "updated_at"],
@@ -75,5 +76,11 @@ export function migrate(db) {
     } else {
       verifyAccountsSchema(db);
     }
+    if (version < 3) {
+      installVaultSchema(db);
+      db.exec("INSERT OR IGNORE INTO participant_vault_sync(participant_id) SELECT participant_id FROM accounts WHERE role='user'");
+      verifyVaultSchema(db);
+      db.pragma("user_version = 3");
+    } else { verifyVaultSchema(db); }
   }).immediate();
 }

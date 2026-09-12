@@ -1,3 +1,4 @@
+import { startVaultWorker } from "./vault-sync.mjs";
 // Server-side SQLite persistence for Luz de Luna (Moonlight).
 // One embedded database file, no external DB server — sized for Bucket 3.
 // Mirrors the Pegasus companion's per-user relational shape:
@@ -10,6 +11,10 @@ import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
 import { migrate } from "./migrations.mjs";
+
+export function getVaultRoot() {
+  return process.env.MOONLIGHT_VAULT_DIR || path.join(path.dirname(process.cwd()), "moonlight-private-vaults");
+}
 
 let _db = null;
 
@@ -27,5 +32,6 @@ export function getDb() {
     throw error;
   }
   _db = db;
+  if (process.env.NEXT_PHASE !== "phase-production-build") startVaultWorker(db,getVaultRoot());
   return db;
 }

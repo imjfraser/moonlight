@@ -1,7 +1,8 @@
+import { markVaultDirty } from "./vault-sync.mjs";
 // Ownership, shop persistence, and first-publication milestone are one write unit.
 export function saveShop(db, participantId, handle, shop) {
   return db.transaction(() => {
-    const existing = db.prepare("SELECT participant_id FROM shops WHERE handle = ?").get(handle);
+    const existing = db.prepare("SELECT participant_id, shop_json FROM shops WHERE handle = ?").get(handle);
     if (existing && existing.participant_id !== participantId) return { error: "handle_taken" };
     if (existing) {
       db.prepare("UPDATE shops SET shop_json = ?, updated_at = datetime('now') WHERE handle = ? AND participant_id = ?")
@@ -12,6 +13,7 @@ export function saveShop(db, participantId, handle, shop) {
       db.prepare("INSERT INTO timeline (participant_id, kind, summary, data_json) VALUES (?, 'shop_created', ?, ?)")
         .run(participantId, "Shop page created: " + handle, JSON.stringify({ handle }));
     }
+    if (!existing || existing.shop_json !== JSON.stringify(shop)) markVaultDirty(db,participantId);
     return { ok: true };
   }).immediate();
 }
