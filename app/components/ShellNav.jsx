@@ -22,7 +22,6 @@ export default function ShellNav() {
         <span>Luz de Luna</span>
       </Link>
       <div className="links" style={{ alignItems: "center" }}>
-        <a href="/proposal">{t("nav.funding")}</a>
         <Link href="/start">{t("nav.start")}</Link>
         <Link href="/architect">{t("nav.coach")}</Link>
         <Link href="/me">{t("nav.myPage")}</Link>

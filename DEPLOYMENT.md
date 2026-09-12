@@ -4,8 +4,6 @@
 
 - Host alias: `bucket3`; source: `/home/ubuntu/moonlight`.
 - Public application: `https://luzdeluna.app`.
-- Production `/proposal` is a proxy alias for `public/proposal.html`, not an
-  App Router page; local access is `/proposal.html`.
 - Application unit: `moonlight.service`; launcher: `start.sh`; port: 3002.
 - Application log: `/home/ubuntu/logs/moonlight.log`.
 - SQLite defaults to `data/moonlight.sqlite`; `MOONLIGHT_DATA_DIR` may override it.

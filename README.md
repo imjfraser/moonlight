@@ -2,6 +2,8 @@
 
 Entrepreneurship coaching Next.js application for a guided business-building journey.
 This repository is a prototype, not a declaration of production readiness.
+Product direction: paid entrepreneurship coaching, not donor-funded. Payment
+processing is not implemented.
 
 ## Current architecture
 
@@ -77,7 +79,6 @@ already-saved coach artifacts. This is not account recovery.
 | `/preview` | Illustrative kit website/privacy preview; saves journey state, not a public shop |
 | `/me` | Owner shop editing and live public-shop publication |
 | `/shop/[handle]` | Public server-rendered storefront |
-| `/proposal` | Production proxy alias for `public/proposal.html`; locally use `/proposal.html` |
 
 ## Development
 

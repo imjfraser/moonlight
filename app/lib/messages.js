@@ -18,7 +18,6 @@ export const messages = {
   "nav.start":   { en: "Start",        es: "Empezar" },
   "nav.coach":   { en: "Coach",        es: "Coach" },
   "nav.myPage":  { en: "My page",      es: "Mi página" },
-  "nav.funding": { en: "Proposal",     es: "Propuesta" },
 
   "footer.body": {
     en: "Luz de Luna — your business coach. Your work is saved on our server; AI coaching processes your answers and conversation. Published shop content is public.",
@@ -37,7 +36,6 @@ export const messages = {
     es: "Luz de Luna es un coach de negocios en tu bolsillo. Tú traes tu talento, tu tiempo y lo que ya sabes. Sol te ayuda a convertirlo en un negocio real que paga — usando las nuevas herramientas que permiten que una sola persona haga lo que antes requería un equipo.",
   },
   "landing.ctaStart":  { en: "Start a session →", es: "Empieza una sesión →" },
-  "landing.ctaFunders": { en: "For partners & funders", es: "Para aliados y financiadores" },
   "landing.card1.title": { en: "How it works", es: "Cómo funciona" },
   "landing.card1.body": {
     en: "Sol — your coach — asks you a few simple questions, listens, and helps you choose your first move this week. You walk away with one specific customer to message, a price, and a page you can share.",
