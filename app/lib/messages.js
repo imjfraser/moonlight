@@ -10,7 +10,7 @@
 //   - Keys are namespaced by screen: `nav.start`, `intake.step1.title`, etc.
 //   - When you add a string, add BOTH languages. The fallback is English.
 
-export const SUPPORTED_LANGS = ["en", "es"];
+export const SUPPORTED_LANGS = ["en", "es", "uk"];
 export const DEFAULT_LANG = "en";
 
 export const messages = {
@@ -27,6 +27,10 @@ export const messages = {
 
   // === Landing page (/) ===
   "landing.pill": { en: "Your mini-incubator with Sol", es: "Tu miniincubadora con Sol" },
+  "landing.preregister.badge": { en: "Under construction", es: "En construcción", uk: "У розробці" },
+  "landing.preregister.cta": { en: "Pre-register", es: "Preinscribirme", uk: "Попередня реєстрація" },
+  "landing.preregister.note": { en: "Moonlight is still being built. Pre-register now and we will email you the moment the full program opens.", es: "Moonlight todavía se está construyendo. Preinscíbete ahora y te avisaremos por correo en cuanto el programa completo esté disponible.", uk: "Moonlight ще перебуває в розробці. Зареєструйтеся заздалегідь, і ми повідомимо вас електронною поштою, щойно повна програма стане доступною." },
+  "landing.langSwitch.label": { en: "Language", es: "Idioma", uk: "Мова" },
   "landing.heroTitle": {
     en: "Build your business, one practical step at a time.",
     es: "Construye tu negocio, un paso práctico a la vez.",

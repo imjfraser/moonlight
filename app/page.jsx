@@ -1,13 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { useT } from "./lib/i18n";
+import { useT, useLang, setLang } from "./lib/i18n";
 import { PROGRAM_STAGES } from "./lib/program-progress.mjs";
+
+function LangSwitch() {
+  const lang = useLang();
+  const t = useT();
+  const options = [
+    { code: "en", label: "English" },
+    { code: "es", label: "Espa\u00f1ol" },
+    { code: "uk", label: "\u0423\u043a\u0440\u0430\u0457\u043d\u0441\u044c\u043a\u0430" },
+  ];
+  return (
+    <div className="row" role="group" aria-label={t("landing.langSwitch.label")} style={{ gap: 6 }}>
+      {options.map((opt) => (
+        <button
+          key={opt.code}
+          type="button"
+          className={"btn ghost" + (lang === opt.code ? " active" : "")}
+          aria-pressed={lang === opt.code}
+          onClick={() => setLang(opt.code)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function Home() {
   const t = useT();
   return (
     <>
+      <div className="card warm" style={{ marginBottom: 22 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <span className="pill">{t("landing.preregister.badge")}</span>
+          <LangSwitch />
+        </div>
+        <p className="muted" style={{ marginTop: 10, marginBottom: 14 }}>{t("landing.preregister.note")}</p>
+        <div className="row">
+          <Link href="/login" className="btn">{t("landing.preregister.cta")}</Link>
+        </div>
+      </div>
+
       <span className="pill">{t("landing.pill")}</span>
       <h1>{t("landing.heroTitle")}</h1>
       <p className="muted" style={{ fontSize: 17, maxWidth: 640 }}>
