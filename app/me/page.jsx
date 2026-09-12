@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import PublishStatus from "../components/PublishStatus";
+import ShopSection from "../components/ShopSection";
+import { imageFileError } from "../lib/image-upload.mjs";
 import { loadSession, defaultSession } from "../lib/session";
 import { loadShop, addSection, removeSection, updateSection, myHandle } from "../lib/shop-store";
 import { useT, useLang } from "../lib/i18n";
@@ -249,7 +251,7 @@ export default function MePage() {
             <span className="pill">{t("me.builder.proposesPill", { type: proposed.type })}</span>
             <h4 style={{ marginTop: 8 }}>{proposed.title}</h4>
             <p className="muted">{lang === "es" ? "Borrador generado: confirma precios, testimonios y promesas antes de publicarlo." : "Generated draft: confirm prices, testimonials, and promises before publishing."}</p>
-            <SectionPreview section={proposed} />
+            <ShopSection section={proposed} />
             {proposed.type === "gallery" && (
               <PhotoManager section={proposed} onPhotosChange={(photos) => updateProposedData({ photos })} compact />
             )}
@@ -295,94 +297,6 @@ export default function MePage() {
   );
 }
 
-function SectionPreview({ section }) {
-  const d = section.data || {};
-  if (section.type === "testimonial") {
-    return (
-      <div className="card tight" style={{ background: "rgba(0,0,0,0.04)" }}>
-        <p style={{ fontStyle: "italic", margin: 0 }}>&ldquo;{d.quote}&rdquo;</p>
-        <p className="muted" style={{ margin: "6px 0 0" }}>— {d.author}</p>
-      </div>
-    );
-  }
-  if (section.type === "faq") {
-    return (
-      <ul className="clean">
-        {(d.items || []).map((it, i) => (
-          <li key={i}>
-            <strong>{it.q}</strong>
-            <br />
-            <span className="muted">{it.a}</span>
-          </li>
-        ))}
-      </ul>
-    );
-  }
-  if (section.type === "promo") {
-    return (
-      <div className="card tight" style={{ background: "rgba(245,154,134,0.15)" }}>
-        <strong>{d.headline}</strong>
-        <p style={{ margin: "4px 0" }}>{d.detail}</p>
-        {d.until && <p className="muted" style={{ margin: 0, fontSize: 13 }}>{d.until}</p>}
-      </div>
-    );
-  }
-  if (section.type === "about-extra") {
-    return (
-      <div className="card tight" style={{ background: "rgba(0,0,0,0.04)" }}>
-        <strong>{d.heading}</strong>
-        <p style={{ margin: "6px 0 0" }}>{d.body}</p>
-      </div>
-    );
-  }
-  if (section.type === "service") {
-    return (
-      <div className="card tight" style={{ background: "rgba(0,0,0,0.04)" }}>
-        <strong>{d.name}</strong>
-        <p style={{ margin: "6px 0" }}>{d.description}</p>
-        <p className="muted" style={{ margin: 0 }}>
-          {d.priceLocal || `USD ${d.priceUSD}`} · {d.deliveryWindow}
-        </p>
-      </div>
-    );
-  }
-  if (section.type === "gallery") {
-    const photos = d.photos || (d.captions || []).map((c) => ({ url: "", caption: c }));
-    return (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
-        {photos.map((p, i) => (
-          <div key={i} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 6, background: "rgba(255,255,255,0.6)" }}>
-            {p.url ? (
-              <img src={p.url} alt={p.caption || ""} style={{ width: "100%", borderRadius: 6, display: "block" }} />
-            ) : (
-              <div style={{ height: 80, borderRadius: 6, background: "rgba(0,0,0,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: 12, textAlign: "center", padding: 6 }}>
-                {p.caption || ""}
-              </div>
-            )}
-            {p.url && p.caption && <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>{p.caption}</p>}
-          </div>
-        ))}
-      </div>
-    );
-  }
-  if (section.type === "booking") {
-    return <p><strong>{d.label}</strong>{d.url ? <> — <a href={d.url}>{d.url}</a></> : null}</p>;
-  }
-  if (section.type === "newsletter") {
-    return <p className="muted"><strong>{d.label}</strong> — {d.prompt}</p>;
-  }
-  if (section.type === "social") {
-    return (
-      <ul className="clean">
-        {(d.links || []).map((l, i) => (
-          <li key={i}><strong>{l.platform}</strong>: {l.url || ""}</li>
-        ))}
-      </ul>
-    );
-  }
-  return <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(d, null, 2)}</pre>;
-}
-
 function PhotoManager({ section, onPhotosChange, compact }) {
   const t = useT();
   const initial = section.data?.photos || (section.data?.captions || []).map((c) => ({ url: "", caption: c }));
@@ -390,6 +304,7 @@ function PhotoManager({ section, onPhotosChange, compact }) {
   const [urlDraft, setUrlDraft] = useState("");
   const [captionDraft, setCaptionDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const fileRef = useRef(null);
 
   function commit(next) {
@@ -400,6 +315,15 @@ function PhotoManager({ section, onPhotosChange, compact }) {
   async function onFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const problem = imageFileError(file);
+    if (problem) {
+      setUploadError(problem === "too_large"
+        ? (t.lang === "es" ? "La imagen debe pesar 2 MiB o menos." : "Choose an image no larger than 2 MiB.")
+        : (t.lang === "es" ? "Elige una imagen PNG, JPEG, WebP o GIF válida." : "Choose a valid PNG, JPEG, WebP or GIF image."));
+      e.target.value = "";
+      return;
+    }
+    setUploadError("");
     setBusy(true);
     try {
       const dataUrl = await fileToDataURL(file);
@@ -407,6 +331,8 @@ function PhotoManager({ section, onPhotosChange, compact }) {
       commit(next);
       setCaptionDraft("");
       if (fileRef.current) fileRef.current.value = "";
+    } catch {
+      setUploadError(t.lang === "es" ? "No se pudo leer la imagen. Inténtalo de nuevo." : "The image could not be read. Try again.");
     } finally {
       setBusy(false);
     }
@@ -456,7 +382,8 @@ function PhotoManager({ section, onPhotosChange, compact }) {
       )}
 
       <div style={{ display: "grid", gap: 6 }}>
-        <input aria-label={t("me.photo.heading")} type="file" accept="image/*" ref={fileRef} onChange={onFile} disabled={busy} style={{ fontSize: 13 }} />
+        <input aria-label={t("me.photo.heading")} type="file" accept="image/png,image/jpeg,image/webp,image/gif" ref={fileRef} onChange={onFile} disabled={busy} style={{ fontSize: 13 }} />
+        {uploadError && <p role="alert">{uploadError}</p>}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <input
             aria-label={t("me.photo.urlPlaceholder")}
