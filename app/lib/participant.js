@@ -30,6 +30,7 @@ export async function resolveParticipant() {
 
   store.set(COOKIE, id, {
     httpOnly: true,
+    secure: true,
     sameSite: "lax",
     path: "/",
     maxAge: MAX_AGE,
