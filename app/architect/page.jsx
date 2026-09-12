@@ -8,6 +8,7 @@ import { boundedCoachHistory } from "../lib/coach-contract.mjs";
 import { journeyView, hasIntake, appendCoachReply, resetCoachJourney, missingShopDraft, waitForJourneySave } from "../lib/coach-journey.mjs";
 import { hydrateShops, loadShop, saveShop, retryShop, getShopStatus } from "../lib/shop-store";
 import CoachPublication from "../components/CoachPublication";
+import ProgramProgress from "../components/ProgramProgress";
 
 const INITIAL_SAVE = { status: "loading", ready: false };
 
@@ -203,6 +204,7 @@ export default function CoachPage() {
     <>
       <span className="pill">{t(`coach.stateLabel.${state}`)}{t("coach.pillSuffix")}</span>
       <h1>{t("coach.title")}</h1>
+      <ProgramProgress session={s} />
 
       <div ref={scrollRef} className="card" style={{ maxHeight: 480, overflowY: "auto", padding: 14 }}>
         <div className="chat">
@@ -223,7 +225,7 @@ export default function CoachPage() {
       </div>
 
       {proposedOffer && (
-        <div className="card warm">
+        <div id="coach-offer" className="card warm">
           <span className="pill">{t("coach.offerCard.pill")}</span>
           <h3 style={{ marginTop: 8 }}>{proposedOffer.name}</h3>
           <p style={{ marginTop: 0 }}><strong>{proposedOffer.tagline}</strong></p>
@@ -251,7 +253,7 @@ export default function CoachPage() {
       )}
 
       {marketingPlan && (
-        <div className="card warm">
+        <div id="coach-plan" className="card warm">
           <span className="pill">{t("coach.marketing.pill")}</span>
           <h3 style={{ marginTop: 8 }}>
             {marketingPlan.primaryChannel}
@@ -280,7 +282,7 @@ export default function CoachPage() {
       )}
 
       {draftedMessage && (
-        <div className="card">
+        <div id="coach-message" className="card">
           <span className="pill">{t("coach.draftedMessage.pill")}</span>
           <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", background: "rgba(0,0,0,0.04)", borderRadius: 10, padding: 12, margin: "10px 0" }}>{draftedMessage}</pre>
           <div className="row">
