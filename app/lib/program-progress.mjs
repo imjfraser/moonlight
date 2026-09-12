@@ -34,3 +34,14 @@ export function programProgress(session, publicationStatus = "ready") {
     handle: view.shopHandle,
   };
 }
+
+// Squares mark observed coaching stages, not inferred sales or skipped steps.
+export function programSquares(progress) {
+  return progress.stages.map(stage => ({
+    ...stage,
+    current: stage.id === progress.current.id,
+    squareStatus: stage.id === "done"
+      ? (progress.graduationReady ? "completed" : stage.id === progress.current.id ? "current" : "upcoming")
+      : stage.id === progress.current.id ? "current" : stage.status === "visited" ? "completed" : "upcoming",
+  }));
+}

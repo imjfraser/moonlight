@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useLang } from "../lib/i18n";
-import { programProgress } from "../lib/program-progress.mjs";
+import { programProgress, programSquares } from "../lib/program-progress.mjs";
 import { journeyView } from "../lib/coach-journey.mjs";
 import { subscribeShops, getShopStatus } from "../lib/shop-store";
 const INITIAL = { status: "ready" };
@@ -22,6 +22,25 @@ export default function ProgramProgress({ session }) {
   return <section className="card" aria-labelledby="program-heading">
     <span className="pill">{es ? "Tu miniincubadora" : "Your mini-incubator"}</span>
     <h2 id="program-heading" style={{ marginTop: 10 }}>{es ? "De una habilidad a tu primer paso" : "From a skill to your first step"}</h2>
+    <ol aria-label={es ? "Progreso de las siete etapas" : "Seven-stage program progress"} style={{ display: "flex", flexWrap: "wrap", gap: 6, listStyle: "none", padding: 0, margin: "16px 0 8px" }}>
+      {programSquares(progress).map((stage, index) => {
+        const completed = stage.squareStatus === "completed";
+        const current = stage.squareStatus === "current";
+        const status = completed ? (es ? "completada" : "completed") : current ? (es ? "actual" : "current") : (es ? "por explorar" : "upcoming");
+        const label = es ? `Etapa ${index + 1} de 7: ${name(stage)} — ${status}` : `Stage ${index + 1} of 7: ${name(stage)} — ${status}`;
+        return <li key={stage.id} aria-current={stage.current ? "step" : undefined}>
+          <span role="img" aria-label={label} title={label} style={{
+            display: "inline-flex", width: 30, height: 30, alignItems: "center", justifyContent: "center",
+            borderRadius: 4, border: current ? "3px solid #80510d" : completed ? "2px solid #356044" : "1px solid #8a8177",
+            background: completed ? "#356044" : "#fff", color: completed ? "#fff" : "#594e40",
+            fontSize: 13, fontWeight: 700, boxSizing: "border-box",
+          }}><span aria-hidden="true">{completed ? "✓" : index + 1}</span></span>
+        </li>;
+      })}
+    </ol>
+    <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>{es
+      ? "Relleno: etapa cubierta con Sol. Contorno grueso: etapa actual. Vacío: por explorar. La última se rellena cuando el kit y la publicación están listos."
+      : "Filled: covered with Sol. Bold outline: current stage. Empty: upcoming. The last fills when the kit and publication are ready."}</p>
     <p><strong>{es ? "Ahora: " : "Now: "}</strong>{name(progress.current)}</p>
     <p className="muted"><strong>{es ? "Siguiente paso: " : "Next step: "}</strong>{progress.graduationReady
       ? (es ? "Usa tu mensaje y vuelve a contarle a Sol cómo te fue." : "Use your message, then tell Sol how it went.")
