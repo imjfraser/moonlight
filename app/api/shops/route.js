@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { getDb } from "../../lib/db";
+import { saveShop } from "../../lib/shop-persistence.mjs";
 import { resolveParticipant } from "../../lib/participant";
 import { normalizeShop, normalizeHandle, SHOP_BODY_LIMIT } from "../../lib/shop-contract.mjs";
 import { readRequestJson } from "../../lib/request-json.mjs";
@@ -43,23 +44,9 @@ export async function PUT(req) {
   const id = await resolveParticipant();
 
   const db = getDb();
-  const existing = db.prepare("SELECT participant_id FROM shops WHERE handle = ?").get(handle);
-  if (existing && existing.participant_id !== id) {
-    return NextResponse.json({ error: "handle_taken" }, { status: 409 });
-  }
-  const firstTime = !existing;
-
-  db.prepare(
-    `INSERT INTO shops (participant_id, handle, shop_json, updated_at)
-     VALUES (?, ?, ?, datetime('now'))
-     ON CONFLICT(handle)
-     DO UPDATE SET shop_json = excluded.shop_json, updated_at = datetime('now')`
-  ).run(id, handle, JSON.stringify(shop));
-
-  if (firstTime) {
-    db.prepare(
-      "INSERT INTO timeline (participant_id, kind, summary, data_json) VALUES (?, 'shop_created', ?, ?)"
-    ).run(id, "Shop page created: " + handle, JSON.stringify({ handle }));
+  const result = saveShop(db, id, handle, shop);
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: 409, headers: { "Cache-Control": "no-store" } });
   }
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
