@@ -24,7 +24,7 @@ export default function PreviewPage() {
       heroTitle: "Little Moon Kitchen",
       heroSubtitle: bt("Home-cooked dishes made with care."),
       aboutShort: bt("I'm starting something small. I cook one dish a week and take orders by WhatsApp. Send me a message to order."),
-      services: [bt("Dish of the week (pre-order)"), bt("Family pack"), "Special request — by message"],
+      services: [bt("Dish of the week (pre-order)"), bt("Family pack"), bt("Special request — by message")],
       ctaText: bt("Message on WhatsApp"),
     },
   };
@@ -35,7 +35,8 @@ export default function PreviewPage() {
 
   return (
     <>
-      <span className="pill">{bt("Website preview")}</span>
+      <span className="pill">{bt(k ? "Website preview" : "Sample page (not published)")}</span>
+      <p className="muted">{bt("This is only a preview. It does not publish a page or change your public page.")}</p>
       <h1>{bt("This is what your small business website could look like.")}</h1>
       <p className="muted">{bt("Toggle between the public version (what neighbours and customers see) and the private/safe version (extra protection for your privacy).")}</p>
 
@@ -102,7 +103,8 @@ export default function PreviewPage() {
       </div>
 
       <div className="row">
-        <Link href="/kit" className="btn ghost">{bt("← Back to the business kit")}</Link>
+        {k && <Link href="/kit" className="btn ghost">{bt("← Back to the business kit")}</Link>}
+        <Link href="/architect" className="btn">{bt("Continue with Sol →")}</Link>
         <Link href="/" className="btn ghost">{bt("Finish for now")}</Link>
       </div>
     </>

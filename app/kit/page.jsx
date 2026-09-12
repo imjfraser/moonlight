@@ -45,8 +45,8 @@ export default function KitPage() {
     return (
       <>
         <h1>{bt("No business kit yet")}</h1>
-        <p className="muted">{bt("Send a brief to the builder first.")}</p>
-        <Link href="/brief" className="btn">{bt("Go to the brief →")}</Link>
+        <p className="muted">{bt("Continue your conversation with Sol to prepare your offer and shareable page.")}</p>
+        <Link href="/architect" className="btn">{bt("Continue with Sol →")}</Link>
       </>
     );
   }

@@ -77,5 +77,9 @@ export const businessMessages = {
   "Dish of the week (pre-order)": "Plato de la semana (por encargo)",
   "Family pack": "Paquete familiar",
   "Special request — by message": "Pedido especial — por mensaje",
-  "Message on WhatsApp": "Enviar mensaje por WhatsApp"
+  "Message on WhatsApp": "Enviar mensaje por WhatsApp",
+  "Sample page (not published)": "Página de ejemplo (sin publicar)",
+  "This is only a preview. It does not publish a page or change your public page.": "Esto es solo una vista previa. No publica una página ni modifica tu página pública.",
+  "Continue with Sol →": "Continuar con Sol →",
+  "Continue your conversation with Sol to prepare your offer and shareable page.": "Continúa tu conversación con Sol para preparar tu oferta y tu página para compartir."
 };

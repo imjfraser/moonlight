@@ -37,8 +37,8 @@ export default function BriefPage() {
     return (
       <>
         <h1>{bt("No brief yet")}</h1>
-        <p className="muted">{bt("Start a session and pick an idea first.")}</p>
-        <Link href="/start" className="btn">{bt("Start a session →")}</Link>
+        <p className="muted">{bt("Continue your conversation with Sol to prepare your offer and shareable page.")}</p>
+        <Link href="/architect" className="btn">{bt("Continue with Sol →")}</Link>
       </>
     );
   }
