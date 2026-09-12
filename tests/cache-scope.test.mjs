@@ -74,7 +74,7 @@ test('same-scope pending draft survives reload and resumes with matching revisio
 });
 test('GET and PUT routes use cookie identity; missing/wrong scopes reject without state/shop writes',async()=>{
  const db=new Database(':memory:');db.pragma('foreign_keys=ON');migrate(db);db.exec("INSERT INTO participants(id) VALUES ('synthetic-a'), ('synthetic-b')");let id='synthetic-b';
- const globals={NextResponse:{json:(value,options)=>Response.json(value,options)},getDb:()=>db,resolveParticipant:async()=>id,participantCacheScope,MAX_STATE_BYTES,readState,saveState,validateStateWrite,saveShop,normalizeShop,normalizeHandle,SHOP_BODY_LIMIT,readRequestJson};
+ const globals={withUser:handler=>handler,NextResponse:{json:(value,options)=>Response.json(value,options)},getDb:()=>db,resolveParticipant:async()=>id,participantCacheScope,MAX_STATE_BYTES,readState,saveState,validateStateWrite,saveShop,normalizeShop,normalizeHandle,SHOP_BODY_LIMIT,readRequestJson};
  globalThis.__scopeRouteTest=globals;
  async function route(name){const source=await readFile(new URL(`app/api/${name}/route.js`,root),'utf8');return import(url(`const { ${Object.keys(globals).join(',')} } = globalThis.__scopeRouteTest;\n`+source.replace(/^import .*;\n/gm,'')));}
  try {

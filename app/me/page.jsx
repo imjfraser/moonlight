@@ -5,7 +5,7 @@ import Link from "next/link";
 import PublishStatus from "../components/PublishStatus";
 import ShopSection from "../components/ShopSection";
 import { imageFileError } from "../lib/image-upload.mjs";
-import { loadSession, defaultSession } from "../lib/session";
+import { loadSession, defaultSession, getSessionCacheScope, invalidateSessionIdentity } from "../lib/session";
 import { loadShop, addSection, removeSection, updateSection, myHandle } from "../lib/shop-store";
 import { useT, useLang } from "../lib/i18n";
 
@@ -70,6 +70,7 @@ export default function MePage() {
   }, [messages, pending, proposed]);
 
   async function sendToBuilder(history) {
+    const sendingScope = getSessionCacheScope();
     setPending(true);
     setErrorMsg("");
     try {
@@ -78,11 +79,20 @@ export default function MePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shop: loadShop(handle),
+          cacheScope: sendingScope,
           messages: builderHistory(history),
           lang,
         }),
       });
+      if (getSessionCacheScope() !== sendingScope) return;
       if (!res.ok) {
+        const failure = await res.json().catch(() => ({}));
+        if (getSessionCacheScope() !== sendingScope) return;
+        if (res.status === 401 || (res.status === 409 && failure.error === "cache_scope_mismatch")) {
+          invalidateSessionIdentity();
+          window.location.assign("/login");
+          return;
+        }
         if (res.status === 429) {
           const seconds = Math.max(1, Math.min(3600, Number(res.headers.get("Retry-After")) || 60));
           setErrorMsg(lang === "es" ? `Espera ${seconds} segundos antes de volver a intentar.` : `Wait ${seconds} seconds before trying again.`);
@@ -94,6 +104,7 @@ export default function MePage() {
         return;
       }
       const data = await res.json();
+      if (getSessionCacheScope() !== sendingScope) return;
       const assistantMsg = {
         role: "assistant",
         content: data.message || "(no reply)",
@@ -104,11 +115,10 @@ export default function MePage() {
       const newMessages = [...history, assistantMsg];
       setMessages(newMessages);
       setProposed(data.proposedSection || null);
-    } catch (e) {
-      console.error(e);
-      setErrorMsg(t("common.connectionHiccup"));
+    } catch {
+      if (getSessionCacheScope() === sendingScope) setErrorMsg(t("common.connectionHiccup"));
     } finally {
-      setPending(false);
+      if (getSessionCacheScope() === sendingScope) setPending(false);
     }
   }
 

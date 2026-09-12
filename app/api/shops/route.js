@@ -1,3 +1,4 @@
+import { withUser } from "../../lib/auth.mjs";
 // A participant's own shop pages. GET returns all of hers (keyed by handle);
 // PUT upserts one and records a timeline milestone the first time a handle is
 // created. Public read-by-handle lives in ./[handle]/route.js so a shared shop
@@ -13,7 +14,7 @@ import { readRequestJson } from "../../lib/request-json.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+async function handleGET() {
   const id = await resolveParticipant();
   const db = getDb();
   const rows = db
@@ -27,7 +28,7 @@ export async function GET() {
   return NextResponse.json({ shops, cacheScope: participantCacheScope(id) }, { headers: { "Cache-Control": "no-store" } });
 }
 
-export async function PUT(req) {
+async function handlePUT(req) {
   let handle, shop, cacheScope;
   try {
     const body = await readRequestJson(req, SHOP_BODY_LIMIT + 4096);
@@ -62,3 +63,7 @@ function safeParse(s) {
     return null;
   }
 }
+
+export const GET = withUser(handleGET);
+
+export const PUT = withUser(handlePUT);

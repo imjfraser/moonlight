@@ -1,3 +1,4 @@
+import { withUser } from "../../lib/auth.mjs";
 // Web adapter around a transport-independent coach contract and context builder.
 import Anthropic from "@anthropic-ai/sdk";
 import { COACH_SYSTEM_PROMPT } from "../../lib/coach-prompt";
@@ -14,7 +15,7 @@ export const runtime = "nodejs";
 function failure(error, status, headers = {}) {
   return Response.json({ error }, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
-export async function POST(req) {
+async function handlePOST(req) {
   const quota = checkCoachLimit(req.headers.get("cookie") || "");
   if (!quota.allowed) return failure("rate_limited", 429, { "Retry-After": String(quota.retryAfter) });
   let body;
@@ -138,3 +139,5 @@ function slugify(s) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40).replace(/-+$/g, "") || "shop";
 }
+
+export const POST = withUser(handlePOST);

@@ -1,5 +1,6 @@
+import { migrateAccounts, verifyAccountsSchema } from "./account-migrations.mjs";
 // Version 1 adopts the original schema without rewriting participant data.
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 const columns = {
   participants: ["id", "display_name", "public_name", "lang", "email", "created_at", "last_active_at"],
   participant_state: ["participant_id", "state_json", "updated_at"],
@@ -66,6 +67,13 @@ export function migrate(db) {
       db.pragma("user_version = 1");
     } else {
       verifySchema(db);
+    }
+    if (version < 2) {
+      migrateAccounts(db);
+      verifyAccountsSchema(db);
+      db.pragma("user_version = 2");
+    } else {
+      verifyAccountsSchema(db);
     }
   }).immediate();
 }

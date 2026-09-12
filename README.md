@@ -10,9 +10,12 @@ processing is not implemented.
 - Next.js 15 App Router, React 19, JSX and global CSS.
 - SQLite via `better-sqlite3`, WAL mode and versioned migrations; participant,
   journey-state, shop and milestone tables. Not a database-free mock.
-- Participant identity uses a one-year first-party cookie with Secure, HttpOnly
-  and SameSite=Lax attributes, not a recoverable account login. Clearing the
-  cookie can lose access to previous work.
+- Public registration and sign-in use verified email magic links through Resend.
+  One canonical participant UUID owns each account, journey and shop; later logins
+  reuse that identity. Tokens are stored hashed, links expire after 15 minutes and
+  are consumed atomically; 30-day server sessions are revocable and recheck account
+  status on every request. User/admin audiences use separate secure HttpOnly cookies.
+  Legacy guest-id cookies and unbound guest caches do not authenticate or merge.
 - Journey saves use server revisions and atomic writes. The client serializes
   saves and retains failed drafts in a per-tab journal; conflicts require an
   explicit user decision rather than silently replacing server data.
@@ -106,5 +109,27 @@ call a provider or the running application. Production build: `npm run build`.
 
 See `DEPLOYMENT.md` for current deployment and `ops/BACKUP.md` for the existing
 online-consistent backup schedule and disposable restore verification. Native
-SQLite remains a single-host persistence dependency. Account recovery,
-distributed quotas and a full accessibility/localization audit are not claimed.
+SQLite remains a single-host persistence dependency. Distributed quotas and a full accessibility/localization audit are not claimed.
+
+
+## Accounts and email
+- Participant sign-in: `/login`; administrator sign-in: `/admin/login`.
+  Registration is open; new verified participant accounts receive a `free`
+  enrollment-tier placeholder. No billing or paid-plan behavior is implemented.
+- Private journey pages and state/shop/coach/builder APIs require a participant
+  session. Browser mutations require the configured application Origin.
+  Admin sessions cannot enter participant APIs, and public registration cannot
+  assign admin roles. Disabled accounts lose sessions and unused sign-in links.
+- Sender: **Luz de Luna <moonlight@pegasuscompanion.com>**, using the existing
+  authorized Resend service and verified domain. Links point to
+  **https://luzdeluna.app**, never to Pegasus. Tokens travel in URL fragments and
+  are verified by POST, not query parameters.
+- Configuration: `RESEND_API_KEY`, optional `MOONLIGHT_AUTH_FROM`, optional
+  `MOONLIGHT_APP_ORIGIN` (default `https://luzdeluna.app`). Keep credentials in
+  the gitignored `.env.local` with mode 0600; never commit them.
+- No administrator is seeded automatically. An operator can explicitly run
+  `node scripts/provision-admin.mjs --email <authorized-email>`. Promoting an
+  existing participant requires the additional `--promote-existing` flag and
+  revokes their old sessions. This is not exposed through a web endpoint.
+- Verification uses disposable SQLite and mocked email/provider calls. A live
+  recovery email to a real recipient has not been tested in this deployment.

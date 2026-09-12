@@ -46,6 +46,7 @@ getDb:()=>({}),
 readState:()=>{stateReads++;return {state:memory}},
 };
 let source=fs.readFileSync(new URL("../app/api/coach/route.js",import.meta.url),"utf8")
+.replace('import { withUser } from "../../lib/auth.mjs";', "const withUser=handler=>handler;")
 .replace('import Anthropic from "@anthropic-ai/sdk";',"const Anthropic=globalThis.__coachSDK;")
 .replace('import { COACH_SYSTEM_PROMPT } from "../../lib/coach-prompt";','const COACH_SYSTEM_PROMPT="UNCHANGED PROMPT TEST";')
 .replace('import { getDb } from "../../lib/db";',"const {getDb}=globalThis.__coachDeps;")

@@ -1,3 +1,5 @@
+import { withUser, requireUser } from "../../lib/auth.mjs";
+import { participantCacheScope } from "../../lib/cache-scope.mjs";
 import Anthropic from "@anthropic-ai/sdk";
 import { BUILDER_SYSTEM_PROMPT } from "../../lib/builder-prompt";
 import { BUILDER_BODY_LIMIT, validateBuilderRequest, validateBuilderResponse } from "../../lib/builder-contract.mjs";
@@ -11,7 +13,7 @@ function failure(error, status, headers = {}) {
   return Response.json({ error }, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
-export async function POST(req) {
+async function handlePOST(req) {
   const limit = checkBuilderLimit(req.headers.get("cookie") || "");
   if (!limit.allowed) return failure("rate_limited", 429, { "Retry-After": String(limit.retryAfter) });
   let body;
@@ -21,8 +23,14 @@ export async function POST(req) {
     return failure(error.status === 413 ? "payload_too_large" : "invalid_json", error.status === 413 ? 413 : 400);
   }
   let input;
-  try { input = validateBuilderRequest(body); }
-  catch { return failure("invalid_builder_request", 400); }
+  let requestedScope;
+  try {
+    const { cacheScope, ...builderBody } = body || {};
+    requestedScope = cacheScope;
+    input = validateBuilderRequest(builderBody);
+  } catch { return failure("invalid_builder_request", 400); }
+  const account = await requireUser();
+  if (requestedScope !== participantCacheScope(account.id)) return failure("cache_scope_mismatch",409);
   const { shop, messages, lang } = input;
   if (!process.env.ANTHROPIC_API_KEY) {
     try {
@@ -146,3 +154,5 @@ function responseFor(intent, ctx) {
   if (intent === "social") return { message: `Link your other accounts.`, proposedSection: { type: "social", title: "Find me here too", data: { links: [{ platform: "Instagram", url: "" }, { platform: "TikTok", url: "" }] } }, quickReplies: ["Add it", "Just one for now", "Not yet"] };
   return null;
 }
+
+export const POST = withUser(handlePOST);

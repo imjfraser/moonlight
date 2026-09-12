@@ -110,8 +110,8 @@ export const messages = {
   "intake.btnSave":     { en: "Save & close", es: "Guardar y cerrar" },
   "intake.btnMeetCoach":{ en: "Meet your coach →", es: "Conoce a tu coach →" },
   "intake.footnote": {
-    en: "Your answers are saved on our server and used with your conversation to provide AI coaching. This browser uses a guest cookie to access your work; clearing it can lose access. Your published shop is public.",
-    es: "Tus respuestas se guardan en nuestro servidor y se usan junto con tu conversación para el coaching con IA. Este navegador usa una cookie de invitada para acceder a tu trabajo; borrarla puede hacerte perder el acceso. Tu tienda publicada es pública.",
+    en: "Your answers are saved on our server and used with your conversation to provide AI coaching. Your work belongs to your account; use an email sign-in link to return on another browser. Your published shop is public.",
+    es: "Tus respuestas se guardan en nuestro servidor y se usan junto con tu conversación para el coaching con IA. Tu trabajo pertenece a tu cuenta; usa un enlace de acceso por correo para volver desde otro navegador. Tu tienda publicada es pública.",
   },
 
   // === Coach / Architect (/architect) ===

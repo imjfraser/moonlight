@@ -54,3 +54,20 @@ snapshots. See `ops/BACKUP.md` for paths, permissions, the repeatable disposable
 restore verifier and controlled recovery procedure. Never copy the main live
 SQLite file alone as an assumed complete WAL-mode backup; never combine a
 restored database with unrelated old WAL/SHM sidecars.
+
+## Account access
+
+Registration is open through `/login`, using Resend email magic links. The existing
+verified sending domain is `pegasuscompanion.com`; the display sender is Luz de Luna
+and all login URLs use `https://luzdeluna.app`. `RESEND_API_KEY` belongs only in the
+ignored `.env.local` (0600). Optional settings: `MOONLIGHT_AUTH_FROM` and
+`MOONLIGHT_APP_ORIGIN`. No new external key or domain was created for this release.
+
+Version 2 adds accounts, hashed one-use magic links and revocable server sessions.
+Guest test data is not merged into accounts: legacy cookies no longer authenticate.
+Normal and admin sessions have separate audiences/cookies; every private request
+checks active status and role. New registrations cannot select an admin role.
+To provision an administrator deliberately, run
+`node scripts/provision-admin.mjs --email <authorized-email>` on the host.
+No administrator has been provisioned automatically. No payment processing exists;
+`enrollment_tier` is a future enrollment placeholder, not a billing entitlement.

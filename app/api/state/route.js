@@ -1,3 +1,4 @@
+import { withUser } from "../../lib/auth.mjs";
 // Participant journey persistence. Optimistic revisions prevent stale clients
 // from silently overwriting newer state; profile fields commit atomically.
 import { NextResponse } from "next/server";
@@ -10,12 +11,12 @@ export const dynamic = "force-dynamic";
 
 const responseHeaders = { "Cache-Control": "no-store" };
 
-export async function GET() {
+async function handleGET() {
   const id = await resolveParticipant();
   return NextResponse.json({ ...readState(getDb(), id), cacheScope: participantCacheScope(id) }, { headers: responseHeaders });
 }
 
-export async function PUT(req) {
+async function handlePUT(req) {
   // Limit the full request, including chunked bodies, before parsing JSON.
   const reader = req.body?.getReader();
   if (!reader) {
@@ -65,3 +66,7 @@ export async function PUT(req) {
   }
   return NextResponse.json({ ok: true, revision: result.revision }, { headers: responseHeaders });
 }
+
+export const GET = withUser(handleGET);
+
+export const PUT = withUser(handlePUT);
