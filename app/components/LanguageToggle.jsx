@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import { useLang, setLang } from "../lib/i18n";
 
 // Tiny pill toggle for EN / ES.
 
 export default function LanguageToggle() {
   const lang = useLang();
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
   return (
     <div
       role="group"

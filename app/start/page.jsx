@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useBusinessT } from "../lib/business-i18n";
 import { loadSession, saveSession, defaultSession } from "../lib/session";
 import { useT } from "../lib/i18n";
 
@@ -21,6 +22,7 @@ const HOURS = ["1-2", "3-4", "5-10", "10-20", "20+"];
 const OFFER_TYPE_IDS = ["service", "product", "class", "content", "unsure"];
 
 export default function StartIntake() {
+  const bt = useBusinessT();
   const router = useRouter();
   const t = useT();
   const [s, setS] = useState(defaultSession);
@@ -63,10 +65,10 @@ export default function StartIntake() {
       body: (
         <>
           <p className="muted">{t("intake.step1.intro")}</p>
-          <label className="field">{t("intake.q.nameLabel")}</label>
-          <input value={i.name} onChange={(e) => update("name", e.target.value)} placeholder={t("intake.q.namePlaceholder")} />
-          <label className="field">{t("intake.q.ideaLabel")}</label>
-          <textarea value={i.askedFor} onChange={(e) => update("askedFor", e.target.value)} placeholder={t("intake.q.ideaPlaceholder")} />
+          <label className="field" htmlFor="intake-name">{t("intake.q.nameLabel")}</label>
+          <input id="intake-name" value={i.name} onChange={(e) => update("name", e.target.value)} placeholder={t("intake.q.namePlaceholder")} />
+          <label className="field" htmlFor="intake-askedFor">{t("intake.q.ideaLabel")}</label>
+          <textarea id="intake-askedFor" value={i.askedFor} onChange={(e) => update("askedFor", e.target.value)} placeholder={t("intake.q.ideaPlaceholder")} />
         </>
       ),
     },
@@ -75,14 +77,14 @@ export default function StartIntake() {
       body: (
         <>
           <p className="muted">{t("intake.step2.intro")}</p>
-          <label className="field">{t("intake.q.skillsLabel")}</label>
-          <textarea value={i.skills} onChange={(e) => update("skills", e.target.value)} placeholder={t("intake.q.skillsPlaceholder")} />
-          <label className="field">{t("intake.q.offerTypeLabel")}</label>
-          <div style={{ display: "grid", gap: 8 }}>
+          <label className="field" htmlFor="intake-skills">{t("intake.q.skillsLabel")}</label>
+          <textarea id="intake-skills" value={i.skills} onChange={(e) => update("skills", e.target.value)} placeholder={t("intake.q.skillsPlaceholder")} />
+          <div className="field" style={{ margin: "16px 0 6px", fontWeight: 600 }} id="intake-offerType-label">{t("intake.q.offerTypeLabel")}</div>
+          <div role="group" aria-labelledby="intake-offerType-label" style={{ display: "grid", gap: 8 }}>
             {OFFER_TYPE_IDS.map((id) => (
-              <div key={id} className={"option " + (i.offerType === id ? "selected" : "")} onClick={() => update("offerType", id)}>
+              <button type="button" aria-pressed={i.offerType === id} style={{ font: "inherit", textAlign: "left" }} key={id} className={"option " + (i.offerType === id ? "selected" : "")} onClick={() => update("offerType", id)}>
                 {t(`intake.offerType.${id}`)}
-              </div>
+              </button>
             ))}
           </div>
         </>
@@ -92,20 +94,20 @@ export default function StartIntake() {
       title: t("intake.step3.title"),
       body: (
         <>
-          <label className="field">{t("intake.q.hoursLabel")}</label>
-          <div className="row">
+          <div className="field" style={{ margin: "16px 0 6px", fontWeight: 600 }} id="intake-hours-label">{t("intake.q.hoursLabel")}</div>
+          <div className="row" role="group" aria-labelledby="intake-hours-label">
             {HOURS.map((h) => (
-              <div key={h} className={"option " + (i.hoursPerWeek === h ? "selected" : "")} onClick={() => update("hoursPerWeek", h)}>
+              <button type="button" aria-pressed={i.hoursPerWeek === h} style={{ font: "inherit" }} key={h} className={"option " + (i.hoursPerWeek === h ? "selected" : "")} onClick={() => update("hoursPerWeek", h)}>
                 {h} {t("intake.hours.suffix")}
-              </div>
+              </button>
             ))}
           </div>
-          <label className="field">{t("intake.q.channelsLabel")}</label>
-          <div className="row">
+          <div className="field" style={{ margin: "16px 0 6px", fontWeight: 600 }} id="intake-channels-label">{t("intake.q.channelsLabel")}</div>
+          <div className="row" role="group" aria-labelledby="intake-channels-label">
             {CHANNELS.map((c) => (
-              <div key={c} className={"option " + (i.channels.includes(c) ? "selected" : "")} onClick={() => toggleChannel(c)}>
-                {c}
-              </div>
+              <button type="button" aria-pressed={i.channels.includes(c)} style={{ font: "inherit" }} key={c} className={"option " + (i.channels.includes(c) ? "selected" : "")} onClick={() => toggleChannel(c)}>
+                {bt(c)}
+              </button>
             ))}
           </div>
         </>
@@ -116,15 +118,15 @@ export default function StartIntake() {
       body: (
         <>
           <div className="safety" style={{ marginBottom: 14 }}>{t("intake.step4.intro")}</div>
-          <label className="field">{t("intake.q.safetyLabel")}</label>
-          <textarea value={i.safetyNotes} onChange={(e) => update("safetyNotes", e.target.value)} placeholder={t("intake.q.safetyPlaceholder")} />
-          <label className="field">{t("intake.q.realNameLabel")}</label>
-          <div className="row">
-            <div className={"option " + (i.showRealName ? "selected" : "")} onClick={() => update("showRealName", true)}>{t("intake.realName.yes")}</div>
-            <div className={"option " + (!i.showRealName ? "selected" : "")} onClick={() => update("showRealName", false)}>{t("intake.realName.no")}</div>
+          <label className="field" htmlFor="intake-safetyNotes">{t("intake.q.safetyLabel")}</label>
+          <textarea id="intake-safetyNotes" value={i.safetyNotes} onChange={(e) => update("safetyNotes", e.target.value)} placeholder={t("intake.q.safetyPlaceholder")} />
+          <div className="field" style={{ margin: "16px 0 6px", fontWeight: 600 }} id="intake-realName-label">{t("intake.q.realNameLabel")}</div>
+          <div className="row" role="group" aria-labelledby="intake-realName-label">
+            <button type="button" aria-pressed={i.showRealName} style={{ font: "inherit" }} className={"option " + (i.showRealName ? "selected" : "")} onClick={() => update("showRealName", true)}>{t("intake.realName.yes")}</button>
+            <button type="button" aria-pressed={!i.showRealName} style={{ font: "inherit" }} className={"option " + (!i.showRealName ? "selected" : "")} onClick={() => update("showRealName", false)}>{t("intake.realName.no")}</button>
           </div>
-          <label className="field">{t("intake.q.publicNameLabel")}</label>
-          <input value={i.publicName} onChange={(e) => update("publicName", e.target.value)} placeholder={t("intake.q.publicNamePlaceholder")} />
+          <label className="field" htmlFor="intake-publicName">{t("intake.q.publicNameLabel")}</label>
+          <input id="intake-publicName" value={i.publicName} onChange={(e) => update("publicName", e.target.value)} placeholder={t("intake.q.publicNamePlaceholder")} />
         </>
       ),
     },

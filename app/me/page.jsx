@@ -270,6 +270,7 @@ export default function MePage() {
 
         <textarea
           maxLength={4000}
+          aria-label={t("me.builder.composerPlaceholder")}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={t("me.builder.composerPlaceholder")}
@@ -440,6 +441,7 @@ function PhotoManager({ section, onPhotosChange, compact }) {
                 </div>
               )}
               <input
+                aria-label={t("me.photo.captionPlaceholder")}
                 value={p.caption || ""}
                 onChange={(e) => setCaptionAt(i, e.target.value)}
                 placeholder={t("me.photo.captionPlaceholder")}
@@ -454,15 +456,17 @@ function PhotoManager({ section, onPhotosChange, compact }) {
       )}
 
       <div style={{ display: "grid", gap: 6 }}>
-        <input type="file" accept="image/*" ref={fileRef} onChange={onFile} disabled={busy} style={{ fontSize: 13 }} />
+        <input aria-label={t("me.photo.heading")} type="file" accept="image/*" ref={fileRef} onChange={onFile} disabled={busy} style={{ fontSize: 13 }} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <input
+            aria-label={t("me.photo.urlPlaceholder")}
             value={urlDraft}
             onChange={(e) => setUrlDraft(e.target.value)}
             placeholder={t("me.photo.urlPlaceholder")}
             style={{ flex: "1 1 200px", fontSize: 13, padding: 8, borderRadius: 8, border: "1px solid var(--line)", background: "#fff" }}
           />
           <input
+            aria-label={t("me.photo.captionPlaceholder")}
             value={captionDraft}
             onChange={(e) => setCaptionDraft(e.target.value)}
             placeholder={t("me.photo.captionPlaceholder")}
