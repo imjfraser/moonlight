@@ -1,120 +1,78 @@
-// Moonlight coach API route.
-// Receives intake + conversation history and returns Sol's next message
-// as a structured JSON object (see app/lib/coach-prompt.js for the schema).
-
+// Web adapter around a transport-independent coach contract and context builder.
 import Anthropic from "@anthropic-ai/sdk";
 import { COACH_SYSTEM_PROMPT } from "../../lib/coach-prompt";
+import { COACH_BODY_LIMIT, validateCoachRequest, validateCoachResponse } from "../../lib/coach-contract.mjs";
+import { buildCoachMessages } from "../../lib/coach-context.mjs";
+import { checkCoachLimit } from "../../lib/coach-rate-limit.mjs";
+import { readRequestJson } from "../../lib/request-json.mjs";
+import { getDb } from "../../lib/db";
+import { resolveParticipant, participantCacheScope } from "../../lib/participant";
+import { readState } from "../../lib/state-store.mjs";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
-
 export const runtime = "nodejs";
-
+function failure(error, status, headers = {}) {
+  return Response.json({ error }, { status, headers: { "Cache-Control": "no-store", ...headers } });
+}
 export async function POST(req) {
+  const quota = checkCoachLimit(req.headers.get("cookie") || "");
+  if (!quota.allowed) return failure("rate_limited", 429, { "Retry-After": String(quota.retryAfter) });
   let body;
+  try { body = await readRequestJson(req, COACH_BODY_LIMIT); }
+  catch (error) { return failure(error.status === 413 ? "payload_too_large" : "invalid_json", error.status === 413 ? 413 : 400); }
+  let input;
+  try { input = validateCoachRequest(body); }
+  catch { return failure("invalid_coach_request", 400); }
+
+  let memory;
   try {
-    body = await req.json();
-  } catch {
-    return Response.json({ error: "invalid_json" }, { status: 400 });
-  }
-
-  const { intake, messages, lang } = body || {};
-  if (!intake || !Array.isArray(messages)) {
-    return Response.json({ error: "missing_intake_or_messages" }, { status: 400 });
-  }
-
-  const intakeContext = formatIntake(intake);
-  const langName = lang === "es" ? "Spanish (LATAM, use tú not usted)" : "English";
-  const langDirective = `LANGUAGE — IMPORTANT: She has chosen ${langName}. Respond in ${langName} unless she clearly switches mid-conversation, in which case follow her lead. Keep the JSON output schema unchanged — only the prose values (message, quickReplies, proposedOffer.*, draftedMessage, marketingPlan.*, skillGapAdvice) should be in her language.`;
+    const participantId = await resolveParticipant();
+    if (participantCacheScope(participantId) !== input.cacheScope) {
+      return failure("cache_scope_mismatch", 409);
+    }
+    memory = readState(getDb(), participantId).state;
+  } catch { return failure("memory_unavailable", 503); }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json(offlineFallback(intake, messages));
+    try {
+      return Response.json(validateCoachResponse(offlineFallback(input.intake, input.messages)), { headers: { "Cache-Control": "no-store" } });
+    } catch { return failure("invalid_coach_response", 502); }
   }
-
+  const langName = input.lang === "es" ? "Spanish (LATAM, use tú not usted)" : "English";
+  const langDirective = `LANGUAGE — IMPORTANT: She has chosen ${langName}. Respond in ${langName} unless she clearly switches mid-conversation, in which case follow her lead. Keep the JSON output schema unchanged — only the prose values (message, quickReplies, proposedOffer.*, draftedMessage, marketingPlan.*, skillGapAdvice) should be in her language.`;
+  let response;
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const kickoffEs = "Por favor empieza la conversación saludándome por mi nombre del intake y haciéndome la pregunta inicial del estado 'greeting'.";
-    const kickoffEn = "Please start the conversation by greeting me by my name from the intake and asking the opening question for the greeting state.";
-    const messagesForClaude = messages.length > 0
-      ? messages.map((m) => ({ role: m.role, content: m.content }))
-      : [{ role: "user", content: lang === "es" ? kickoffEs : kickoffEn }];
-
-    const response = await client.messages.create({
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 60000, maxRetries: 0 });
+    response = await client.messages.create({
       model: MODEL,
-      max_tokens: 1024,
-      system: `${COACH_SYSTEM_PROMPT}\n\n${langDirective}\n\nHER INTAKE:\n${intakeContext}`,
-      messages: messagesForClaude,
+      max_tokens: 2048,
+      system: `${COACH_SYSTEM_PROMPT}\n\n${langDirective}`,
+      messages: buildCoachMessages(input, memory),
     });
-
-    const text = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
-
-    const parsed = safeParseJson(text);
-    if (!parsed) {
-      return Response.json({
-        message: "Sorry — let me try that again. Could you say that one more time?",
-        state: lastState(messages) || "greeting",
-        quickReplies: null,
-        raw: text,
-        error: "model_returned_non_json",
-      });
-    }
-    return Response.json(parsed);
-  } catch (err) {
-    console.error("coach api error", err);
-    return Response.json(
-      {
-        message: "Sorry — I lost my connection for a moment. Let me know when you're ready to keep going.",
-        state: lastState(messages) || "greeting",
-        quickReplies: ["Let's keep going", "Start over"],
-        error: "upstream_error",
-      },
-      { status: 200 },
-    );
+  } catch (error) {
+    const timeout = error?.name === "APIConnectionTimeoutError" || error?.name === "AbortError";
+    return failure(timeout ? "upstream_timeout" : "upstream_error", timeout ? 504 : 502);
   }
-}
-
-function formatIntake(intake) {
-  const lines = [];
-  if (intake.name) lines.push(`Name she goes by: ${intake.name}`);
-  if (intake.publicName) lines.push(`Public name preference: ${intake.publicName}`);
-  if (typeof intake.showRealName === "boolean")
-    lines.push(`Wants real name shown publicly: ${intake.showRealName ? "yes" : "no"}`);
-  if (intake.skills) lines.push(`What she's good at, in her words: ${intake.skills}`);
-  if (intake.askedFor) lines.push(`What people already ask her for: ${intake.askedFor}`);
-  if (intake.offerType) lines.push(`Offer type she's leaning toward: ${intake.offerType}`);
-  if (intake.hoursPerWeek) lines.push(`Hours per week available: ${intake.hoursPerWeek}`);
-  if (Array.isArray(intake.channels) && intake.channels.length)
-    lines.push(`Channels she can use: ${intake.channels.join(", ")}`);
-  if (intake.safetyNotes) lines.push(`Privacy preferences: ${intake.safetyNotes}`);
-  return lines.join("\n");
+  try {
+    const text = response.content.filter(block => block.type === "text").map(block => block.text).join("").trim();
+    return Response.json(validateCoachResponse(safeParseJson(text)), { headers: { "Cache-Control": "no-store" } });
+  } catch { return failure("invalid_coach_response", 502); }
 }
 
 function safeParseJson(text) {
   if (!text) return null;
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
   try { return JSON.parse(cleaned); } catch {}
-  const m = cleaned.match(/\{[\s\S]*\}/);
-  if (m) { try { return JSON.parse(m[0]); } catch {} }
-  return null;
-}
-
-function lastState(messages) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role === "assistant" && m.state) return m.state;
-  }
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) { try { return JSON.parse(match[0]); } catch {} }
   return null;
 }
 
 function offlineFallback(intake, messages) {
   const turn = messages.filter((m) => m.role === "user").length;
-  const name = (intake.name || "friend").split(" ")[0];
-  const skill = (intake.skills || intake.askedFor || "what you're already good at").split(/[,.]/)[0];
-  const publicName = intake.publicName || name;
+  const name = (intake.name || "friend").split(" ")[0].slice(0, 80);
+  const skill = (intake.skills || intake.askedFor || "what you're already good at").split(/[,.]/)[0].slice(0, 120);
+  const publicName = (intake.publicName || name).slice(0, 120);
 
   if (turn === 0) {
     return {
@@ -178,5 +136,5 @@ function slugify(s) {
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "shop";
+    .slice(0, 40).replace(/-+$/g, "") || "shop";
 }

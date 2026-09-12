@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { loadSession, saveSession, defaultSession } from "../lib/session";
+import { loadSession, saveSession, defaultSession, getSessionCacheScope, invalidateSessionIdentity } from "../lib/session";
 import { useT, useLang } from "../lib/i18n";
+import { boundedCoachHistory } from "../lib/coach-contract.mjs";
 
 export default function CoachPage() {
   const router = useRouter();
@@ -54,6 +55,7 @@ export default function CoachPage() {
   }, [messages, pending]);
 
   async function sendToCoach(history, intake) {
+    const sendingScope = getSessionCacheScope();
     setPending(true);
     setErrorMsg("");
     try {
@@ -62,11 +64,29 @@ export default function CoachPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           intake: intake || s.intake,
-          messages: history.map((m) => ({ role: m.role, content: m.content })),
+          messages: boundedCoachHistory(history),
+          cacheScope: sendingScope,
           lang,
         }),
       });
+      if (getSessionCacheScope() !== sendingScope) return;
+      if (!res.ok) {
+        const failure = await res.json().catch(() => ({}));
+        if (getSessionCacheScope() !== sendingScope) return;
+        if (res.status === 409 && failure.error === "cache_scope_mismatch") {
+          invalidateSessionIdentity();
+          return;
+        }
+        const seconds = Math.max(1, Math.min(3600, Number(res.headers.get("Retry-After")) || 60));
+        setErrorMsg(res.status === 429
+          ? (lang === "es" ? `Espera ${seconds} segundos antes de volver a intentar.` : `Wait ${seconds} seconds before trying again.`)
+          : res.status === 413
+          ? (lang === "es" ? "El mensaje es demasiado grande. Acórtalo e inténtalo de nuevo." : "The message is too large. Shorten it and try again.")
+          : t("common.connectionHiccup"));
+        return;
+      }
       const data = await res.json();
+      if (getSessionCacheScope() !== sendingScope) return;
       const assistantMsg = {
         role: "assistant",
         content: data.message || "(no reply)",
@@ -122,16 +142,15 @@ export default function CoachPage() {
 
       saveSession(next);
       setS(next);
-    } catch (e) {
-      console.error(e);
-      setErrorMsg(t("common.connectionHiccup"));
+    } catch {
+      if (getSessionCacheScope() === sendingScope) setErrorMsg(t("common.connectionHiccup"));
     } finally {
-      setPending(false);
+      if (getSessionCacheScope() === sendingScope) setPending(false);
     }
   }
 
   function send(text) {
-    const value = (text ?? draft).trim();
+    const value = (text ?? draft).trim().slice(0, 4000);
     if (!value || pending) return;
     const userMsg = { role: "user", content: value };
     const newMessages = [...messages, userMsg];
@@ -306,6 +325,7 @@ export default function CoachPage() {
             </div>
           )}
           <textarea
+            maxLength={4000}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={t("coach.composer.placeholder")}

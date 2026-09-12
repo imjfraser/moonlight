@@ -21,6 +21,23 @@ This repository is a prototype, not a declaration of production readiness.
   One-process token buckets allow 60 global and 10 per-cookie requests at full
   capacity, refilling at those rates per minute; anonymous and bounded overflow
   buckets also apply. These are not distributed limits.
+- Coach requests use the same canonical participant identity and existing journey
+  memory, with a matching cache scope required before reading that memory. A
+  transport-independent context helper supplies existing offer, draft and marketing
+  facts plus validated recent assistant artifacts; this is not a separate memory
+  store or a shipped Telegram identity integration.
+- Coach transport limits: 1 MiB request body, up to 40 recent messages, 4,000
+  content characters per message and 64,000 serialized history characters.
+  Only the outbound context window is bounded; the full saved transcript is retained.
+  Existing response states and nested business artifacts are validated. The coach
+  has its own 60-global/10-per-cookie per-minute token buckets, independent of the
+  builder, with a 60-second provider timeout and no automatic retries.
+- Coach failures use HTTP 400/413 for invalid/oversized requests, 409 for mismatched
+  identity scope, 429 with Retry-After for quotas, 502 for upstream/invalid model
+  responses, 503 for unavailable memory and 504 for provider timeouts. Raw provider
+  output/errors are not exposed. Web requests capture their sending scope and ignore
+  late responses after identity changes; a confirmed scope mismatch invalidates the
+  old in-memory session without deleting its recoverable scoped drafts.
 - Shared storefront section rendering keeps owner/public section layouts aligned.
   Gallery uploads accept PNG/JPEG/WebP/GIF up to 2 MiB per file; the server
   applies the same inline-image cap and an 8 MiB serialized shop limit.
