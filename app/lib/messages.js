@@ -21,8 +21,8 @@ export const messages = {
   "nav.funding": { en: "Proposal",     es: "Propuesta" },
 
   "footer.body": {
-    en: "Luz de Luna — a small, private business coach. Your answers stay in your browser unless you choose to share them.",
-    es: "Luz de Luna — un pequeño coach de negocios, privado. Tus respuestas se quedan en tu navegador a menos que tú elijas compartirlas.",
+    en: "Luz de Luna — your business coach. Your work is saved on our server; AI coaching processes your answers and conversation. Published shop content is public.",
+    es: "Luz de Luna — tu coach de negocios. Tu trabajo se guarda en nuestro servidor; el coaching con IA procesa tus respuestas y conversación. El contenido de tu tienda publicada es público.",
   },
   "footer.copyright": { en: "© Luz de Luna", es: "© Luz de Luna" },
 
@@ -112,8 +112,8 @@ export const messages = {
   "intake.btnSave":     { en: "Save & close", es: "Guardar y cerrar" },
   "intake.btnMeetCoach":{ en: "Meet your coach →", es: "Conoce a tu coach →" },
   "intake.footnote": {
-    en: "Your answers are saved only in this browser session for the prototype demo. Nothing is sent anywhere.",
-    es: "Tus respuestas se guardan solo en esta sesión del navegador para la demo. No se envían a ningún lado.",
+    en: "Your answers are saved on our server and used with your conversation to provide AI coaching. This browser uses a guest cookie to access your work; clearing it can lose access. Your published shop is public.",
+    es: "Tus respuestas se guardan en nuestro servidor y se usan junto con tu conversación para el coaching con IA. Este navegador usa una cookie de invitada para acceder a tu trabajo; borrarla puede hacerte perder el acceso. Tu tienda publicada es pública.",
   },
 
   // === Coach / Architect (/architect) ===
@@ -204,8 +204,8 @@ export const messages = {
   "me.photo.addUrl": { en: "Add URL", es: "Agregar URL" },
   "me.photo.remove": { en: "Remove", es: "Quitar" },
   "me.photo.note": {
-    en: "Photos are stored locally in your browser. Keep them small — under 1MB each for best results.",
-    es: "Las fotos se guardan localmente en tu navegador. Mantenlas pequeñas — menos de 1MB cada una para mejor resultado.",
+    en: "Adding a photo saves it with your shop on our server and publishes it when the save succeeds. Use only photos you want customers to see. PNG, JPEG, WebP or GIF; up to 2 MiB per upload.",
+    es: "Al agregar una foto, se guarda con tu tienda en nuestro servidor y se publica cuando se completa el guardado. Usa solo fotos que quieras mostrar a tus clientes. PNG, JPEG, WebP o GIF; hasta 2 MiB por archivo.",
   },
 
   // === Shop / shareable page (/shop/[handle]) ===
