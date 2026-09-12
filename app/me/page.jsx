@@ -15,6 +15,20 @@ function fileToDataURL(file) {
   });
 }
 
+// Send only recent bounded conversation context; keep the on-screen transcript.
+function builderHistory(history) {
+  const out = [];
+  let chars = 0;
+  for (const message of history.slice(-20).reverse()) {
+    const content = message.content.slice(0, 4000);
+    if (chars + content.length > 32000) break;
+    chars += content.length;
+    out.unshift({ role: message.role, content });
+  }
+  while (out.length && out[0].role !== "user") out.shift();
+  return out;
+}
+
 const SUGGESTION_KEYS = [
   "me.suggestion.next",
   "me.suggestion.testimonial",
@@ -61,10 +75,21 @@ export default function MePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           shop: loadShop(handle),
-          messages: history.map((m) => ({ role: m.role, content: m.content })),
+          messages: builderHistory(history),
           lang,
         }),
       });
+      if (!res.ok) {
+        if (res.status === 429) {
+          const seconds = Math.max(1, Math.min(3600, Number(res.headers.get("Retry-After")) || 60));
+          setErrorMsg(lang === "es" ? `Espera ${seconds} segundos antes de volver a intentar.` : `Wait ${seconds} seconds before trying again.`);
+        } else if (res.status === 413) {
+          setErrorMsg(lang === "es" ? "La página es demasiado grande. Reduce las imágenes e inténtalo de nuevo." : "The page is too large. Reduce the images and try again.");
+        } else {
+          setErrorMsg(t("common.connectionHiccup"));
+        }
+        return;
+      }
       const data = await res.json();
       const assistantMsg = {
         role: "assistant",
@@ -85,7 +110,7 @@ export default function MePage() {
   }
 
   function send(text) {
-    const value = (text ?? draft).trim();
+    const value = (text ?? draft).trim().slice(0, 4000);
     if (!value || pending) return;
     const userMsg = { role: "user", content: value };
     const newMessages = [...messages, userMsg];
@@ -240,6 +265,7 @@ export default function MePage() {
         </div>
 
         <textarea
+          maxLength={4000}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={t("me.builder.composerPlaceholder")}

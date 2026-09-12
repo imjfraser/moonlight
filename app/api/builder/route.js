@@ -1,70 +1,56 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { BUILDER_SYSTEM_PROMPT } from "../../lib/builder-prompt";
+import { BUILDER_BODY_LIMIT, validateBuilderRequest, validateBuilderResponse } from "../../lib/builder-contract.mjs";
+import { readRequestJson } from "../../lib/request-json.mjs";
+import { checkBuilderLimit } from "../../lib/rate-limit.mjs";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
-
 export const runtime = "nodejs";
 
+function failure(error, status, headers = {}) {
+  return Response.json({ error }, { status, headers: { "Cache-Control": "no-store", ...headers } });
+}
+
 export async function POST(req) {
+  const limit = checkBuilderLimit(req.headers.get("cookie") || "");
+  if (!limit.allowed) return failure("rate_limited", 429, { "Retry-After": String(limit.retryAfter) });
   let body;
   try {
-    body = await req.json();
-  } catch {
-    return Response.json({ error: "invalid_json" }, { status: 400 });
+    body = await readRequestJson(req, BUILDER_BODY_LIMIT);
+  } catch (error) {
+    return failure(error.status === 413 ? "payload_too_large" : "invalid_json", error.status === 413 ? 413 : 400);
   }
-
-  const { shop, messages, lang } = body || {};
-  if (!shop || !Array.isArray(messages)) {
-    return Response.json({ error: "missing_shop_or_messages" }, { status: 400 });
+  let input;
+  try { input = validateBuilderRequest(body); }
+  catch { return failure("invalid_builder_request", 400); }
+  const { shop, messages, lang } = input;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    try {
+      return Response.json(validateBuilderResponse(offlineBuilder(shop, messages)), { headers: { "Cache-Control": "no-store" } });
+    } catch { return failure("invalid_builder_response", 502); }
   }
-
   const context = formatShop(shop);
   const langName = lang === "es" ? "Spanish (LATAM, use tú not usted)" : "English";
   const langDirective = `LANGUAGE — IMPORTANT: Respond in ${langName} unless she clearly switches mid-conversation. Only the prose values in your JSON should be in her language; keys, type names, and tool names stay as-is.`;
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json(offlineBuilder(shop, messages));
-  }
-
+  let response;
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 60000, maxRetries: 0 });
     const kickoffEs = "Por favor salúdame y sugiere una cosa concreta que pueda agregar a mi página primero.";
     const kickoffEn = "Please greet me and suggest one specific thing I could add to my page first.";
-    const messagesForClaude = messages.length > 0
-      ? messages.map((m) => ({ role: m.role, content: m.content }))
-      : [{ role: "user", content: lang === "es" ? kickoffEs : kickoffEn }];
-
-    const response = await client.messages.create({
+    response = await client.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: `${BUILDER_SYSTEM_PROMPT}\n\n${langDirective}\n\nHER PAGE RIGHT NOW:\n${context}`,
-      messages: messagesForClaude,
+      messages: messages.length ? messages : [{ role: "user", content: lang === "es" ? kickoffEs : kickoffEn }],
     });
-    const text = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
-    const parsed = safeParseJson(text);
-    if (!parsed) {
-      return Response.json({
-        message: "Let me try that again — could you tell me what you'd like to add?",
-        proposedSection: null,
-        quickReplies: ["Add a testimonial", "Add another service", "Add an FAQ"],
-        raw: text,
-        error: "model_returned_non_json",
-      });
-    }
-    return Response.json(parsed);
-  } catch (err) {
-    console.error("builder api error", err);
-    return Response.json({
-      message: "I lost the connection for a second. Try once more.",
-      proposedSection: null,
-      quickReplies: null,
-      error: "upstream_error",
-    });
+  } catch (error) {
+    const timeout = error?.name === "APIConnectionTimeoutError" || error?.name === "AbortError";
+    return failure(timeout ? "upstream_timeout" : "upstream_error", timeout ? 504 : 502);
   }
+  try {
+    const text = response.content.filter(block => block.type === "text").map(block => block.text).join("").trim();
+    return Response.json(validateBuilderResponse(safeParseJson(text)), { headers: { "Cache-Control": "no-store" } });
+  } catch { return failure("invalid_builder_response", 502); }
 }
 
 function formatShop(shop) {
