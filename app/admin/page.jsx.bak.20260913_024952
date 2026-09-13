@@ -40,14 +40,7 @@ export default async function AdminPage({ searchParams }) {
   const es = chosen === "es", lang = es ? "es" : "en", locale = es ? "es-CO" : "en-US";
   const label = pair => pair[es ? 1 : 0];
   const db = getDb(), metrics = adminMetrics(db);
-  // Names come from the linked participant row; accounts (client or admin) have no name of their own.
-  const accountListSql = `SELECT a.participant_id AS id, a.email AS email, a.status AS status, a.role AS role,
-      a.created_at AS createdAt, p.display_name AS displayName
-    FROM accounts a JOIN participants p ON p.id = a.participant_id
-    WHERE a.role=? AND instr(lower(a.email),lower(?))>0
-    ORDER BY a.created_at DESC LIMIT 50`;
-  const users = db.prepare(accountListSql).all("user", query);
-  const admins = db.prepare(accountListSql).all("admin", query);
+  const users = db.prepare("SELECT participant_id AS id,email,status,created_at AS createdAt FROM accounts WHERE role='user' AND instr(lower(email),lower(?))>0 ORDER BY created_at DESC LIMIT 50").all(query);
   function format(key, value, group) {
     if (value === null) return group === "monetization" ? (es ? "No implementado" : "Not implemented") : (es ? "No disponible" : "Not available");
     if (key === "languageSplit") return Object.entries(value).map(([language, count]) =>
@@ -58,15 +51,6 @@ export default async function AdminPage({ searchParams }) {
       return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
     }
     return String(value);
-  }
-  function accountList(rows, { emptyLabel }) {
-    return <ul>{rows.map(account => <li key={account.id}>
-      {account.role === "user"
-        ? <Link href={`/admin/users/${account.id}?lang=${lang}`}>{account.displayName || account.email}</Link>
-        : <span>{account.displayName || account.email}</span>}
-      {account.displayName ? ` (${account.email})` : ""} — {account.status === "active" ? (es ? "Activa" : "Active") : (es ? "Deshabilitada" : "Disabled")}
-    </li>)}
-    {!rows.length && <li className="muted">{emptyLabel}</li>}</ul>;
   }
   return <main lang={lang}>
     <h1>{es ? "Administración" : "Administration"}</h1>
@@ -85,23 +69,16 @@ export default async function AdminPage({ searchParams }) {
       ? "La actividad usa días UTC y guardados correctos del recorrido o solicitudes autenticadas al coach. Los demás totales se cuentan desde que comenzó la instrumentación. La duración es el tiempo transcurrido, en segundos, desde el primer turno guardado hasta el primer estado final guardado; la tasa de finalización usa los recorridos iniciados. El idioma se cuenta por recorrido. Las tasas de error incluyen respuestas HTTP 4xx/5xx de los endpoints de estado, páginas, coach y constructor. Crear y publicar una página ocurre en la misma escritura atómica, por lo que ambos recuentos coinciden actualmente. La monetización no está implementada. El recuento de seguridad no está disponible: no existe una señal estructurada de revelaciones atendidas; no se usan avisos ni transcripciones como sustitutos."
       : "Activity uses UTC days and successful journey writes/authenticated coach requests. Other totals are since instrumentation began. Session length is elapsed seconds from first saved coaching turn to the first saved done state; completion rate uses started journeys. Language split counts journeys. Error rates include HTTP 4xx/5xx responses on state, shop, coach and builder endpoints. Shops are created and published by the same atomic write, so those counts currently coincide. Monetization is not implemented. Safety count is unavailable: there is no structured handled-disclosure signal; notices and transcripts are not used as proxies."}</p>
     <section className="card">
-      <h2>{es ? "Personas" : "People"}</h2>
+      <h2>{es ? "Gestión de usuarios" : "User management"}</h2>
       <form>
         <input type="hidden" name="lang" value={lang} />
         <label htmlFor="user-search">{es ? "Buscar por correo" : "Search email"}</label>
         <input id="user-search" name="q" defaultValue={query} maxLength={100} />
         <button className="btn" style={{ marginTop: 10 }}>{es ? "Buscar" : "Search"}</button>
       </form>
-      <p className="muted">{es
-        ? "El nombre proviene del perfil del participante; las cuentas de administración solo tienen nombre si el perfil ya existía antes de convertirse en administrador."
-        : "Names come from the participant profile; admin accounts only show a name if one already existed before being made an admin."}</p>
-      <h3>{es ? "Clientes" : "Clients"}</h3>
-      {accountList(users, { emptyLabel: es ? "No hay cuentas de clientes que coincidan." : "No matching client accounts." })}
-      <h3>{es ? "Administradores" : "Administrators"}</h3>
-      {accountList(admins, { emptyLabel: es ? "No hay cuentas de administrador que coincidan." : "No matching admin accounts." })}
-      <p className="muted">{es
-        ? "No existe todavía un rol de \"personal\" independiente: el sistema solo distingue entre clientes y administradores. Se muestran hasta 50 cuentas por grupo."
-        : "There is no separate \"staff\" role yet — the system only distinguishes clients from admins. At most 50 accounts per group are shown."}</p>
+      <ul>{users.map(user => <li key={user.id}><Link href={`/admin/users/${user.id}?lang=${lang}`}>{user.email}</Link> — {user.status === "active" ? (es ? "Activa" : "Active") : (es ? "Deshabilitada" : "Disabled")}</li>)}</ul>
+      {!users.length && <p>{es ? "No hay cuentas que coincidan." : "No matching accounts."}</p>}
+      <p>{es ? "Se muestran hasta 50 cuentas coincidentes." : "At most 50 matching accounts are shown."}</p>
     </section>
   </main>;
 }
